@@ -1,5 +1,6 @@
+![FalconCore Status](https://img.shields.io/badge/status-in%20development-yellow?style=for-the-badge)
+![FalconCore Logo](falconcore-logo.png)
 # FalconCore
-
 **FalconCore** is a brand-new, secure, AI-native programming language built from scratch.
 
 ## Vision
