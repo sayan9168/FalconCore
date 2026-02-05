@@ -1,0 +1,8 @@
+// Simple Calculator in FalconCore
+secure let a = 10
+secure let b = 5
+
+print "Addition: " + (a + b)
+print "Subtraction: " + (a - b)
+print "Multiplication: " + (a * b)
+print "Division: " + (a / b)
