@@ -1,0 +1,4 @@
+```falcon
+// FalconCore - Hello World
+print "Hello from FalconCore!"
+print "This is my own language!"
