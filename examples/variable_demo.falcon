@@ -1,0 +1,9 @@
+// Variable Demo in FalconCore
+secure let name = "Sayan"
+secure const pi = 3.14
+
+print "Name: " + name
+print "PI: " + pi
+
+// This should error
+// pi = 3.1415
