@@ -31,3 +31,11 @@ __pycache__/
 # Misc
 .DS_Store
 *.log
+# Rust
+target/
+Cargo.lock
+
+# Other
+__pycache__/
+*.pyc
+.DS_Store
