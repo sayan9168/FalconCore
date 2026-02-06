@@ -1,5 +1,7 @@
+// src/main.rs - FalconCore Runtime Entry Point
 fn main() {
-    println!("FalconCore - Native Runtime Starting...");
-    println!("This will be the entry point for Falcon VM.");
-    println!("Lexer, Parser, Compiler, and VM coming soon!");
+    println!("FalconCore v0.1 - Native Runtime Starting...");
+    println!("This is the beginning of Falcon's own VM.");
+    println!("Lexer, Parser, Bytecode Compiler & VM coming soon!");
+    println!("Built by SAYAN - Let's make FalconCore real!");
 }
