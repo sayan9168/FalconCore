@@ -1,4 +1,4 @@
-// src/lexer.rs - FalconCore Lexer (Enhanced)
+// src/lexer.rs - FalconCore Lexer (Enhanced with more tokens)
 use std::iter::Peekable;
 use std::str::Chars;
 
@@ -18,6 +18,12 @@ pub enum TokenType {
     Break,
     Continue,
     Print,
+
+    // Built-in commands
+    NetworkScan,
+    CryptoRandom,
+    TimeNow,
+    Wait,
 
     // Literals
     Identifier(String),
@@ -154,6 +160,76 @@ impl<'a> Lexer<'a> {
             "break" => TokenType::Break,
             "continue" => TokenType::Continue,
             "print" => TokenType::Print,
+            "network" => {
+                self.skip_whitespace();
+                if let Some('.') = self.peek() {
+                    self.advance();
+                    if let Some('s') = self.peek() {
+                        let mut next = self.advance().unwrap().to_string();
+                        if let Some('c') = self.peek() {
+                            next.push(self.advance().unwrap());
+                            if let Some('a') = self.peek() {
+                                next.push(self.advance().unwrap());
+                                if let Some('n') = self.peek() {
+                                    next.push(self.advance().unwrap());
+                                    if next == "scan" {
+                                        return TokenType::NetworkScan;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                TokenType::Identifier(ident)
+            }
+            "crypto" => {
+                self.skip_whitespace();
+                if let Some('.') = self.peek() {
+                    self.advance();
+                    if let Some('r') = self.peek() {
+                        let mut next = self.advance().unwrap().to_string();
+                        if let Some('a') = self.peek() {
+                            next.push(self.advance().unwrap());
+                            if let Some('n') = self.peek() {
+                                next.push(self.advance().unwrap());
+                                if let Some('d') = self.peek() {
+                                    next.push(self.advance().unwrap());
+                                    if let Some('o') = self.peek() {
+                                        next.push(self.advance().unwrap());
+                                        if let Some('m') = self.peek() {
+                                            next.push(self.advance().unwrap());
+                                            if next == "random" {
+                                                return TokenType::CryptoRandom;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                TokenType::Identifier(ident)
+            }
+            "time" => {
+                self.skip_whitespace();
+                if let Some('.') = self.peek() {
+                    self.advance();
+                    if let Some('n') = self.peek() {
+                        let mut next = self.advance().unwrap().to_string();
+                        if let Some('o') = self.peek() {
+                            next.push(self.advance().unwrap());
+                            if let Some('w') = self.peek() {
+                                next.push(self.advance().unwrap());
+                                if next == "now" {
+                                    return TokenType::TimeNow;
+                                }
+                            }
+                        }
+                    }
+                }
+                TokenType::Identifier(ident)
+            }
+            "wait" => TokenType::Wait,
             _ => TokenType::Identifier(ident),
         }
     }
@@ -259,4 +335,4 @@ impl<'a> Lexer<'a> {
             Token { kind: TokenType::Eof, line, column }
         }
     }
-                                }
+                           }
