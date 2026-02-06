@@ -1,0 +1,7 @@
+[package]
+name = "falconcore"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# পরে যোগ করবো যেমন: clap, anyhow ইত্যাদি
