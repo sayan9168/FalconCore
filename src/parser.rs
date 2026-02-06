@@ -1,4 +1,4 @@
-// src/parser.rs - FalconCore Parser
+// src/parser.rs - FalconCore Parser (Enhanced)
 use crate::lexer::{Lexer, Token, TokenType};
 
 #[derive(Debug)]
@@ -12,13 +12,20 @@ pub enum Expr {
         right: Box<Expr>,
     },
     Let {
+        is_secure: bool,
+        is_const: bool,
         name: String,
         value: Box<Expr>,
     },
     Print {
         expr: Box<Expr>,
     },
-    // আরও নোড যোগ করবো পরে (if, fn ইত্যাদি)
+    If {
+        condition: Box<Expr>,
+        then_branch: Vec<Expr>,
+        else_branch: Option<Vec<Expr>>,
+    },
+    // আরও নোড যোগ করবো পরে (fn, repeat ইত্যাদি)
 }
 
 pub struct Parser<'a> {
@@ -56,25 +63,34 @@ impl<'a> Parser<'a> {
 
     fn statement(&mut self) -> Expr {
         match self.current_token.kind {
-            TokenType::SecureLet => self.let_statement(),
+            TokenType::SecureLet => self.let_statement(true, false),
+            TokenType::SecureConst => self.let_statement(true, true),
             TokenType::Print => self.print_statement(),
+            TokenType::If => self.if_statement(),
             _ => self.expr(),
         }
     }
 
-    fn let_statement(&mut self) -> Expr {
-        self.eat(TokenType::SecureLet);
+    fn let_statement(&mut self, is_secure: bool, is_const: bool) -> Expr {
+        if is_const {
+            self.eat(TokenType::SecureConst);
+        } else {
+            self.eat(TokenType::SecureLet);
+        }
+
         let name = if let TokenType::Identifier(n) = self.current_token.kind.clone() {
             self.eat(TokenType::Identifier(n.clone()));
             n
         } else {
-            panic!("Expected identifier after secure let");
+            panic!("Expected identifier after secure let/const");
         };
 
         self.eat(TokenType::Assign);
         let value = self.expr();
 
         Expr::Let {
+            is_secure,
+            is_const,
             name,
             value: Box::new(value),
         }
@@ -85,6 +101,45 @@ impl<'a> Parser<'a> {
         let expr = self.expr();
         Expr::Print {
             expr: Box::new(expr),
+        }
+    }
+
+    fn if_statement(&mut self) -> Expr {
+        self.eat(TokenType::If);
+        let condition = self.expr();
+
+        if self.current_token.kind != TokenType::LBrace {
+            panic!("Expected {{ after if condition");
+        }
+        self.eat(TokenType::LBrace);
+
+        let mut then_branch = vec![];
+        while self.current_token.kind != TokenType::RBrace && self.current_token.kind != TokenType::Eof {
+            then_branch.push(self.statement());
+        }
+        self.eat(TokenType::RBrace);
+
+        let else_branch = if self.current_token.kind == TokenType::Else {
+            self.eat(TokenType::Else);
+            if self.current_token.kind != TokenType::LBrace {
+                panic!("Expected {{ after else");
+            }
+            self.eat(TokenType::LBrace);
+
+            let mut else_stmts = vec![];
+            while self.current_token.kind != TokenType::RBrace && self.current_token.kind != TokenType::Eof {
+                else_stmts.push(self.statement());
+            }
+            self.eat(TokenType::RBrace);
+            Some(else_stmts)
+        } else {
+            None
+        };
+
+        Expr::If {
+            condition: Box::new(condition),
+            then_branch,
+            else_branch,
         }
     }
 
@@ -133,4 +188,4 @@ impl<'a> Parser<'a> {
     fn advance(&mut self) {
         self.current_token = self.lexer.next_token();
     }
-      }
+}
