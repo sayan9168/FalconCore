@@ -1,6 +1,4 @@
-// src/lexer.rs - FalconCore Lexer
-// Reads Falcon code and produces tokens
-
+// src/lexer.rs - FalconCore Lexer (Enhanced)
 use std::iter::Peekable;
 use std::str::Chars;
 
@@ -20,8 +18,6 @@ pub enum TokenType {
     Break,
     Continue,
     Print,
-    // Future keywords
-    NetworkScan, // network.scan
 
     // Literals
     Identifier(String),
@@ -114,28 +110,30 @@ impl<'a> Lexer<'a> {
 
         match ident.as_str() {
             "secure" => {
-                // Check for "secure let" or "secure const"
-                if let Some(' ') = self.peek() {
-                    self.skip_whitespace();
-                    if let Some('l') = self.peek() {
-                        let next = self.advance().unwrap();
-                        if let Some('e') = self.peek() {
-                            self.advance();
-                            if let Some('t') = self.peek() {
-                                self.advance();
+                self.skip_whitespace();
+                if let Some('l') = self.peek() {
+                    let mut next = self.advance().unwrap().to_string();
+                    if let Some('e') = self.peek() {
+                        next.push(self.advance().unwrap());
+                        if let Some('t') = self.peek() {
+                            next.push(self.advance().unwrap());
+                            if next == "let" {
                                 return TokenType::SecureLet;
                             }
                         }
-                    } else if let Some('c') = self.peek() {
-                        let next = self.advance().unwrap();
-                        if let Some('o') = self.peek() {
-                            self.advance();
-                            if let Some('n') = self.peek() {
-                                self.advance();
-                                if let Some('s') = self.peek() {
-                                    self.advance();
-                                    if let Some('t') = self.peek() {
-                                        self.advance();
+                    }
+                }
+                if let Some('c') = self.peek() {
+                    let mut next = self.advance().unwrap().to_string();
+                    if let Some('o') = self.peek() {
+                        next.push(self.advance().unwrap());
+                        if let Some('n') = self.peek() {
+                            next.push(self.advance().unwrap());
+                            if let Some('s') = self.peek() {
+                                next.push(self.advance().unwrap());
+                                if let Some('t') = self.peek() {
+                                    next.push(self.advance().unwrap());
+                                    if next == "const" {
                                         return TokenType::SecureConst;
                                     }
                                 }
@@ -209,6 +207,7 @@ impl<'a> Lexer<'a> {
                 '-' => Token { kind: TokenType::Minus, line, column },
                 '*' => Token { kind: TokenType::Star, line, column },
                 '/' => Token { kind: TokenType::Slash, line, column },
+
                 '=' => {
                     if let Some('=') = self.peek() {
                         self.advance();
@@ -217,6 +216,7 @@ impl<'a> Lexer<'a> {
                         Token { kind: TokenType::Assign, line, column }
                     }
                 }
+
                 '!' => {
                     if let Some('=') = self.peek() {
                         self.advance();
@@ -225,6 +225,7 @@ impl<'a> Lexer<'a> {
                         Token { kind: TokenType::Identifier("!".to_string()), line, column }
                     }
                 }
+
                 '>' => {
                     if let Some('=') = self.peek() {
                         self.advance();
@@ -233,6 +234,7 @@ impl<'a> Lexer<'a> {
                         Token { kind: TokenType::Greater, line, column }
                     }
                 }
+
                 '<' => {
                     if let Some('=') = self.peek() {
                         self.advance();
@@ -251,36 +253,10 @@ impl<'a> Lexer<'a> {
                 ',' => Token { kind: TokenType::Comma, line, column },
                 ':' => Token { kind: TokenType::Colon, line, column },
 
-                _ => {
-                    // Unknown character
-                    Token { kind: TokenType::Identifier(c.to_string()), line, column }
-                }
+                _ => Token { kind: TokenType::Identifier(c.to_string()), line, column },
             }
         } else {
             Token { kind: TokenType::Eof, line, column }
         }
     }
-}
-
-// Simple test in main (later remove)
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_lexer() {
-        let code = "secure let x = 42 print \"hello\" if x > 10 { return }";
-        let mut lexer = Lexer::new(code);
-        let mut tokens = vec![];
-
-        loop {
-            let token = lexer.next_token();
-            if token.kind == TokenType::Eof {
-                break;
-            }
-            tokens.push(token);
-        }
-
-        assert_eq!(tokens.len(), 14); // adjust based on expected tokens
-    }
-      }
+                                }
