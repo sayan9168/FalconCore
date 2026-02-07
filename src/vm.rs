@@ -1,4 +1,4 @@
-// src/vm.rs - FalconCore VM (Enhanced with Sub, Mul, Div, Compare opcodes)
+// src/vm.rs - FalconCore VM (Enhanced with Greater, Less, Equal opcodes)
 use crate::compiler::Opcode;
 use crate::parser::Expr;
 use std::collections::HashMap;
@@ -85,7 +85,7 @@ impl VM {
                     }
                 }
 
-                // Compare opcodes
+                // Compare opcodes (push 1 for true, 0 for false)
                 Opcode::Greater => {
                     let right = self.stack.pop().unwrap();
                     let left = self.stack.pop().unwrap();
