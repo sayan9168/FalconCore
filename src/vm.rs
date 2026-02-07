@@ -1,4 +1,4 @@
-// src/vm.rs - FalconCore Virtual Machine (Enhanced: real loop + function call)
+// src/vm.rs - FalconCore VM (Real repeat loop with counter + function call)
 use crate::compiler::Opcode;
 use crate::parser::Expr;
 use std::collections::HashMap;
@@ -10,7 +10,8 @@ pub struct VM {
     ip: usize,
     variables: HashMap<String, Expr>,
     functions: HashMap<String, (Vec<String>, usize)>, // name → (params, start_ip)
-    call_stack: Vec<(usize, HashMap<String, Expr>)>, // (return_ip, local_variables)
+    call_stack: Vec<(usize, HashMap<String, Expr>)>, // (return_ip, saved_locals)
+    loop_counters: Vec<(usize, i64)>, // (loop_start_ip, remaining_iterations)
 }
 
 impl VM {
@@ -23,6 +24,7 @@ impl VM {
             variables: HashMap::new(),
             functions: HashMap::new(),
             call_stack: vec![],
+            loop_counters: vec![],
         }
     }
 
@@ -55,7 +57,6 @@ impl VM {
                     match value {
                         Expr::Number(n) => println!("{}", n),
                         Expr::String(s) => println!("{}", s),
-                        Expr::Identifier(id) => println!("Identifier: {}", id),
                         _ => println!("{:?}", value),
                     }
                 }
@@ -72,16 +73,23 @@ impl VM {
                     self.ip = target;
                     continue;
                 }
-                Opcode::RepeatStart(target) => {
-                    // Save loop start position
-                    // We will handle loop logic in RepeatEnd
+                Opcode::RepeatStart => {
+                    // Expect times on stack
+                    let times = if let Expr::Number(n) = self.stack.pop().unwrap() {
+                        n
+                    } else {
+                        panic!("Repeat expects number");
+                    };
+                    self.loop_counters.push((self.ip, times));
                 }
                 Opcode::RepeatEnd => {
-                    // Jump back to RepeatStart (simple loop)
-                    // In real case, we would decrement counter
-                    // For now, simple infinite loop prevention
-                    if self.ip > 0 {
-                        self.ip -= 1; // jump back one instruction (placeholder)
+                    if let Some((start_ip, mut count)) = self.loop_counters.pop() {
+                        count -= 1;
+                        if count > 0 {
+                            self.loop_counters.push((start_ip, count));
+                            self.ip = start_ip;
+                            continue;
+                        }
                     }
                 }
                 Opcode::Call(name, arg_count) => {
@@ -101,7 +109,6 @@ impl VM {
                         self.call_stack.push((self.ip + 1, self.variables.clone()));
                         self.variables = locals;
 
-                        // Jump to function body
                         self.ip = *start_ip;
                         continue;
                     } else {
