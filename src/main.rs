@@ -222,3 +222,10 @@ fn main() {
     let mut vm = VM::new(compiler.get_constants().clone(), compiler.get_code().clone());
     vm.run();
 }
+// Network test
+let net = NetworkStack::new();
+let devices = net.scan("192.168.1");
+println!("Network Scan Result: {} devices found", devices.len());
+for ip in devices {
+    println!(" - {}", ip);
+}
