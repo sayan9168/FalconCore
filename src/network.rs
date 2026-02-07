@@ -169,3 +169,59 @@ impl NetworkStack {
         format!("Unknown (ARP lookup failed for {})", ip)
     }
 }
+// src/network.rs - FalconCore Network Stack (Real ARP parsing + port range scan)
+use std::net::{TcpStream, SocketAddr};
+use std::time::Duration;
+use std::fs::File;
+use std::io::{self, BufRead};
+use std::collections::HashMap;
+
+pub struct NetworkStack;
+
+impl NetworkStack {
+    pub fn new() -> Self {
+        NetworkStack
+    }
+
+    pub fn scan(&self, subnet: &str, start_port: u16, end_port: u16) -> Vec<(String, Vec<u16>)> {
+        let mut devices = vec![];
+        for i in 1..=254 {
+            let ip = format!("{}.{}", subnet, i);
+            let mut open_ports = vec![];
+
+            for port in start_port..=end_port {
+                let addr: SocketAddr = format!("{}:{}", ip, port).parse().unwrap();
+                if let Ok(mut stream) = TcpStream::connect_timeout(&addr, Duration::from_millis(100)) {
+                    open_ports.push(port);
+                    drop(stream);
+                }
+            }
+
+            if !open_ports.is_empty() {
+                devices.push((ip, open_ports));
+            }
+        }
+        devices
+    }
+
+    pub fn arp_table(&self) -> HashMap<String, String> {
+        let mut table = HashMap::new();
+        if let Ok(file) = File::open("/proc/net/arp") {
+            let reader = io::BufReader::new(file);
+            for line in reader.lines() {
+                if let Ok(l) = line {
+                    let parts: Vec<&str> = l.split_whitespace().collect();
+                    if parts.len() > 3 && parts[0].contains('.') && parts[3].contains(':') {
+                        table.insert(parts[0].to_string(), parts[3].to_string());
+                    }
+                }
+            }
+        }
+        table
+    }
+
+    pub fn get_mac(&self, ip: &str) -> String {
+        let table = self.arp_table();
+        table.get(ip).cloned().unwrap_or_else(|| "Unknown".to_string())
+    }
+            }
