@@ -11,6 +11,61 @@ use vm::VM;
 use network::NetworkStack;
 
 fn main() {
+    println!("FalconCore v0.1 - Full Pipeline + Advanced VM + Network Test");
+
+    let code = r#"
+        secure let x = 10
+        secure let y = 5
+        print x + y
+
+        repeat 3 {
+            print "Loop iteration"
+        }
+
+        fn add(a, b) {
+            return a + b
+        }
+
+        secure let sum = add(20, 30)
+        print sum
+
+        secure let subnet = "192.168.1"
+        secure let devices = network.scan subnet
+        print "Found " + devices.length + " devices"
+    "#;
+
+    // Lexer → Parser → Compiler
+    let lexer = Lexer::new(code);
+    let mut parser = Parser::new(lexer);
+    let ast = parser.parse();
+
+    let mut compiler = Compiler::new();
+    compiler.compile(ast);
+
+    // VM
+    let mut vm = VM::new(compiler.get_constants().clone(), compiler.get_code().clone());
+    vm.run();
+
+    // Network test
+    let net = NetworkStack::new();
+    let devices = net.scan("192.168.1");
+    println!("\nNetwork Scan Result: {} devices found", devices.len());
+    for ip in devices {
+        println!(" - {} (MAC: {})", ip, net.get_mac(&ip));
+    }
+}mod lexer;
+mod parser;
+mod compiler;
+mod vm;
+mod network;
+
+use lexer::Lexer;
+use parser::Parser;
+use compiler::Compiler;
+use vm::VM;
+use network::NetworkStack;
+
+fn main() {
     println!("FalconCore v0.1 - Full Pipeline + Network Stack Test");
 
     let code = r#"
