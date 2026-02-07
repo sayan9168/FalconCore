@@ -284,3 +284,16 @@ println!("Network Scan Result: {} devices found", devices.len());
 for ip in devices {
     println!(" - {}", ip);
 }
+mod lexer;
+mod parser;
+mod compiler;
+mod vm;
+mod network;
+mod repl;
+
+use repl::start_repl;
+
+fn main() {
+    println!("FalconCore v0.1 - REPL Mode");
+    start_repl();
+    }
