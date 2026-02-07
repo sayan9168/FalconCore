@@ -1,3 +1,50 @@
+mod lexer;
+mod parser;
+mod compiler;
+mod vm;
+mod network;
+
+use lexer::Lexer;
+use parser::Parser;
+use compiler::Compiler;
+use vm::VM;
+use network::NetworkStack;
+
+fn main() {
+    println!("FalconCore v0.1 - Full Pipeline + Network Stack Test");
+
+    let code = r#"
+        secure let subnet = "192.168.1"
+        secure let devices = network.scan subnet
+        print "Found " + devices.length + " devices"
+        print "Hello from FalconCore VM!"
+    "#;
+
+    let lexer = Lexer::new(code);
+    let mut parser = Parser::new(lexer);
+    let ast = parser.parse();
+
+    println!("\nAST:");
+    for node in &ast {
+        println!("{:#?}", node);
+    }
+
+    let mut compiler = Compiler::new();
+    compiler.compile(ast);
+
+    println!("\nBytecode:");
+    for (i, op) in compiler.get_code().iter().enumerate() {
+        println!("{:03}: {:?}", i, op);
+    }
+
+    let mut vm = VM::new(compiler.get_constants().clone(), compiler.get_code().clone());
+    vm.run();
+
+    // Network test
+    let net = NetworkStack::new();
+    let devices = net.scan("192.168.1");
+    println!("\nNetwork Scan Result (placeholder): {} devices", devices.len());
+}
 use falconcore::lexer::{Lexer, TokenType};
 
 fn main() {
