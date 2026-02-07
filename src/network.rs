@@ -1,4 +1,25 @@
-// src/network.rs - FalconCore Native Network Stack (First Step)
+// src/network.rs - FalconCore Native Network Stack (Step 1)
+use std::net::{TcpStream, ToSocketAddrs};
+use std::time::Duration;
+
+pub struct NetworkStack;
+
+impl NetworkStack {
+    pub fn new() -> Self {
+        NetworkStack
+    }
+
+    pub fn scan(subnet: &str) -> Vec<String> {
+        let mut devices = vec![];
+        for i in 1..=254 {
+            let ip = format!("{}.{}", subnet, i);
+            if let Ok(mut stream) = TcpStream::connect_timeout(&ip, 80, Duration::from_millis(50)) {
+                devices.push(ip);
+            }
+        }
+        devices
+    }
+}// src/network.rs - FalconCore Native Network Stack (First Step)
 // This will be the foundation for network.scan etc.
 
 pub struct NetworkStack {
