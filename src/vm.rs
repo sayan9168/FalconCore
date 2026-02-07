@@ -1,4 +1,4 @@
-// src/vm.rs - FalconCore VM (Real repeat loop with counter + function call)
+// src/vm.rs - FalconCore VM (More opcodes + full function call)
 use crate::compiler::Opcode;
 use crate::parser::Expr;
 use std::collections::HashMap;
@@ -10,8 +10,8 @@ pub struct VM {
     ip: usize,
     variables: HashMap<String, Expr>,
     functions: HashMap<String, (Vec<String>, usize)>, // name → (params, start_ip)
-    call_stack: Vec<(usize, HashMap<String, Expr>)>, // (return_ip, saved_locals)
-    loop_counters: Vec<(usize, i64)>, // (loop_start_ip, remaining_iterations)
+    call_stack: Vec<(usize, HashMap<String, Expr>)>, // return_ip + saved locals
+    loop_stack: Vec<(usize, i64)>, // loop_start_ip + remaining_iterations
 }
 
 impl VM {
@@ -24,7 +24,7 @@ impl VM {
             variables: HashMap::new(),
             functions: HashMap::new(),
             call_stack: vec![],
-            loop_counters: vec![],
+            loop_stack: vec![],
         }
     }
 
@@ -52,6 +52,36 @@ impl VM {
                         panic!("Add only supports numbers");
                     }
                 }
+                Opcode::Sub => {
+                    let right = self.stack.pop().unwrap();
+                    let left = self.stack.pop().unwrap();
+                    if let (Expr::Number(a), Expr::Number(b)) = (left, right) {
+                        self.stack.push(Expr::Number(a - b));
+                    } else {
+                        panic!("Sub only supports numbers");
+                    }
+                }
+                Opcode::Mul => {
+                    let right = self.stack.pop().unwrap();
+                    let left = self.stack.pop().unwrap();
+                    if let (Expr::Number(a), Expr::Number(b)) = (left, right) {
+                        self.stack.push(Expr::Number(a * b));
+                    } else {
+                        panic!("Mul only supports numbers");
+                    }
+                }
+                Opcode::Div => {
+                    let right = self.stack.pop().unwrap();
+                    let left = self.stack.pop().unwrap();
+                    if let (Expr::Number(a), Expr::Number(b)) = (left, right) {
+                        if b == 0 {
+                            panic!("Division by zero");
+                        }
+                        self.stack.push(Expr::Number(a / b));
+                    } else {
+                        panic!("Div only supports numbers");
+                    }
+                }
                 Opcode::Print => {
                     let value = self.stack.pop().unwrap();
                     match value {
@@ -74,19 +104,18 @@ impl VM {
                     continue;
                 }
                 Opcode::RepeatStart => {
-                    // Expect times on stack
                     let times = if let Expr::Number(n) = self.stack.pop().unwrap() {
                         n
                     } else {
                         panic!("Repeat expects number");
                     };
-                    self.loop_counters.push((self.ip, times));
+                    self.loop_stack.push((self.ip, times));
                 }
                 Opcode::RepeatEnd => {
-                    if let Some((start_ip, mut count)) = self.loop_counters.pop() {
+                    if let Some((start_ip, mut count)) = self.loop_stack.pop() {
                         count -= 1;
                         if count > 0 {
-                            self.loop_counters.push((start_ip, count));
+                            self.loop_stack.push((start_ip, count));
                             self.ip = start_ip;
                             continue;
                         }
@@ -98,14 +127,12 @@ impl VM {
                             panic!("Argument count mismatch for {}", name);
                         }
 
-                        // Create local scope
                         let mut locals = HashMap::new();
                         for param in params.iter().rev() {
                             let arg = self.stack.pop().unwrap();
                             locals.insert(param.clone(), arg);
                         }
 
-                        // Push current state
                         self.call_stack.push((self.ip + 1, self.variables.clone()));
                         self.variables = locals;
 
@@ -132,4 +159,4 @@ impl VM {
 
         println!("VM execution complete!");
     }
-}
+                }
