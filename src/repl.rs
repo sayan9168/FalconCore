@@ -97,3 +97,74 @@ pub fn start_repl() {
         println!();
     }
         }
+// src/repl.rs - FalconCore REPL (Enhanced: multi-line + basic history navigation)
+use std::io::{self, BufRead, Write};
+use crate::lexer::Lexer;
+use crate::parser::Parser;
+use crate::compiler::Compiler;
+use crate::vm::VM;
+
+pub fn start_repl() {
+    println!("FalconCore REPL v0.1 - Multi-line + History");
+    println!("Type code (multi-line: end with empty line), 'exit' to quit, 'history' to see past commands");
+
+    let stdin = io::stdin();
+    let mut history: Vec<String> = vec![];
+
+    loop {
+        print!("falcon> ");
+        io::stdout().flush().unwrap();
+
+        let mut input = String::new();
+        let mut line_count = 0;
+
+        loop {
+            let mut line = String::new();
+            match stdin.read_line(&mut line) {
+                Ok(0) => return, // EOF
+                Ok(_) => {}
+                Err(_) => return,
+            }
+
+            let trimmed = line.trim().to_string();
+
+            if trimmed == "exit" {
+                println!("Goodbye!");
+                return;
+            }
+
+            if trimmed == "history" {
+                println!("History:");
+                for (i, cmd) in history.iter().enumerate() {
+                    println!("{:3}: {}", i + 1, cmd);
+                }
+                continue;
+            }
+
+            if trimmed.is_empty() && line_count > 0 {
+                break; // end multi-line input
+            }
+
+            input.push_str(&line);
+            line_count += 1;
+        }
+
+        if input.trim().is_empty() {
+            continue;
+        }
+
+        history.push(input.trim().to_string());
+
+        let lexer = Lexer::new(&input);
+        let mut parser = Parser::new(lexer);
+        let ast = parser.parse();
+
+        let mut compiler = Compiler::new();
+        compiler.compile(ast);
+
+        let mut vm = VM::new(compiler.get_constants().clone(), compiler.get_code().clone());
+        vm.run();
+
+        println!();
+    }
+    }
