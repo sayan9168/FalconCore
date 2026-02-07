@@ -1,7 +1,7 @@
-// src/parser.rs - FalconCore Parser (with repeat, fn, return support)
+// src/parser.rs - FalconCore Parser (Enhanced with repeat, fn, return, network.scan)
 use crate::lexer::{Lexer, Token, TokenType};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Expr {
     Number(i64),
     String(String),
@@ -36,6 +36,9 @@ pub enum Expr {
     },
     Return {
         value: Option<Box<Expr>>,
+    },
+    NetworkScan {
+        subnet: Box<Expr>,
     },
 }
 
@@ -81,11 +84,11 @@ impl<'a> Parser<'a> {
             TokenType::Repeat => self.repeat_statement(),
             TokenType::Fn => self.fn_statement(),
             TokenType::Return => self.return_statement(),
+            TokenType::NetworkScan => self.network_scan_statement(),
             _ => self.expr(),
         }
     }
 
-    // let / const statement
     fn let_statement(&mut self, is_secure: bool, is_const: bool) -> Expr {
         if is_const {
             self.eat(TokenType::SecureConst);
@@ -97,7 +100,7 @@ impl<'a> Parser<'a> {
             self.eat(TokenType::Identifier(n.clone()));
             n
         } else {
-            panic!("Expected identifier");
+            panic!("Expected identifier after secure let/const");
         };
 
         self.eat(TokenType::Assign);
@@ -111,14 +114,14 @@ impl<'a> Parser<'a> {
         }
     }
 
-    // print statement
     fn print_statement(&mut self) -> Expr {
         self.eat(TokenType::Print);
         let expr = self.expr();
-        Expr::Print { expr: Box::new(expr) }
+        Expr::Print {
+            expr: Box::new(expr),
+        }
     }
 
-    // if statement
     fn if_statement(&mut self) -> Expr {
         self.eat(TokenType::If);
         let condition = self.expr();
@@ -150,7 +153,6 @@ impl<'a> Parser<'a> {
         }
     }
 
-    // repeat statement
     fn repeat_statement(&mut self) -> Expr {
         self.eat(TokenType::Repeat);
         let times = self.expr();
@@ -168,7 +170,6 @@ impl<'a> Parser<'a> {
         }
     }
 
-    // fn statement
     fn fn_statement(&mut self) -> Expr {
         self.eat(TokenType::Fn);
         let name = if let TokenType::Identifier(n) = self.current_token.kind.clone() {
@@ -205,10 +206,9 @@ impl<'a> Parser<'a> {
         }
     }
 
-    // return statement
     fn return_statement(&mut self) -> Expr {
         self.eat(TokenType::Return);
-        let value = if self.current_token.kind != TokenType::Semi {
+        let value = if self.current_token.kind != TokenType::Semi && self.current_token.kind != TokenType::RBrace {
             Some(Box::new(self.expr()))
         } else {
             None
@@ -216,6 +216,54 @@ impl<'a> Parser<'a> {
         Expr::Return { value }
     }
 
-    // expr, term, factor functions আগের মতোই রাখো (আগের কোড থেকে কপি কর)
-    // ...
-}
+    fn network_scan_statement(&mut self) -> Expr {
+        self.eat(TokenType::NetworkScan);
+        let subnet = self.expr();
+        Expr::NetworkScan {
+            subnet: Box::new(subnet),
+        }
+    }
+
+    fn expr(&mut self) -> Expr {
+        self.term()
+    }
+
+    fn term(&mut self) -> Expr {
+        let mut left = self.factor();
+
+        while matches!(self.current_token.kind, TokenType::Plus | TokenType::Minus) {
+            let op = self.current_token.kind.clone();
+            self.advance();
+            let right = self.factor();
+            left = Expr::Binary {
+                left: Box::new(left),
+                op,
+                right: Box::new(right),
+            };
+        }
+
+        left
+    }
+
+    fn factor(&mut self) -> Expr {
+        match self.current_token.kind {
+            TokenType::Number(n) => {
+                self.advance();
+                Expr::Number(n)
+            }
+            TokenType::String(s) => {
+                self.advance();
+                Expr::String(s)
+            }
+            TokenType::Identifier(id) => {
+                self.advance();
+                Expr::Identifier(id)
+            }
+            _ => panic!("Unexpected token in factor: {:?}", self.current_token.kind),
+        }
+    }
+
+    fn advance(&mut self) {
+        self.current_token = self.lexer.next_token();
+    }
+                 }
