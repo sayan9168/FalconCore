@@ -1,4 +1,42 @@
-// src/network.rs - FalconCore Native Network Stack (Advanced Step 1)
+// src/network.rs - FalconCore Native Network Stack (Advanced)
+// Real TCP port scan + basic ARP lookup (placeholder)
+
+use std::net::{TcpStream, SocketAddr};
+use std::time::Duration;
+use std::io;
+
+pub struct NetworkStack;
+
+impl NetworkStack {
+    pub fn new() -> Self {
+        NetworkStack
+    }
+
+    pub fn scan(&self, subnet: &str, port: u16) -> Vec<String> {
+        let mut devices = vec![];
+        for i in 1..=254 {
+            let ip = format!("{}.{}", subnet, i);
+            let addr: SocketAddr = format!("{}:{}", ip, port).parse().unwrap();
+
+            match TcpStream::connect_timeout(&addr, Duration::from_millis(100)) {
+                Ok(_) => {
+                    devices.push(ip.clone());
+                    println!("Open: {}:{} (TCP)", ip, port);
+                }
+                Err(_) => {
+                    // Closed or timeout - no action
+                }
+            }
+        }
+        devices
+    }
+
+    pub fn arp_lookup(&self, ip: &str) -> String {
+        // Real ARP needs root or /proc/net/arp
+        // Placeholder for now
+        format!("00:14:22:xx:xx:xx (ARP lookup placeholder for {})", ip)
+    }
+}// src/network.rs - FalconCore Native Network Stack (Advanced Step 1)
 // Uses std::net for real TCP connect check + ARP placeholder
 
 use std::net::{TcpStream, SocketAddr};
