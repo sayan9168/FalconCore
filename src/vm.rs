@@ -1,12 +1,16 @@
-// src/vm.rs - FalconCore Virtual Machine (Basic)
+// src/vm.rs - FalconCore Virtual Machine (Enhanced with jump, loop, function call)
 use crate::compiler::Opcode;
 use crate::parser::Expr;
+use std::collections::HashMap;
 
 pub struct VM {
     stack: Vec<Expr>,
     constants: Vec<Expr>,
     code: Vec<Opcode>,
     ip: usize,  // instruction pointer
+    variables: HashMap<String, Expr>,
+    functions: HashMap<String, (usize, usize)>, // fn name → (param count, code start index)
+    call_stack: Vec<usize>, // return addresses
 }
 
 impl VM {
@@ -16,24 +20,33 @@ impl VM {
             constants,
             code,
             ip: 0,
+            variables: HashMap::new(),
+            functions: HashMap::new(),
+            call_stack: vec![],
         }
     }
 
     pub fn run(&mut self) {
         while self.ip < self.code.len() {
-            let op = &self.code[self.ip];
+            let op = &self.code[self.ip].clone();
             match op {
                 Opcode::LoadConst(idx) => {
                     let value = self.constants[*idx].clone();
                     self.stack.push(value);
                 }
+                Opcode::LoadVar(name) => {
+                    let value = self.variables.get(name).cloned().unwrap_or(Expr::String("undefined".to_string()));
+                    self.stack.push(value);
+                }
+                Opcode::StoreVar(name) => {
+                    let value = self.stack.pop().unwrap();
+                    self.variables.insert(name.clone(), value);
+                }
                 Opcode::Add => {
                     let right = self.stack.pop().unwrap();
                     let left = self.stack.pop().unwrap();
                     match (left, right) {
-                        (Expr::Number(a), Expr::Number(b)) => {
-                            self.stack.push(Expr::Number(a + b));
-                        }
+                        (Expr::Number(a), Expr::Number(b)) => self.stack.push(Expr::Number(a + b)),
                         _ => panic!("Add only supports numbers"),
                     }
                 }
@@ -46,9 +59,48 @@ impl VM {
                         _ => println!("{:?}", value),
                     }
                 }
+                Opcode::JumpIfFalse(target) => {
+                    let cond = self.stack.pop().unwrap();
+                    if let Expr::Number(n) = cond {
+                        if n == 0 {
+                            self.ip = *target;
+                            continue;
+                        }
+                    }
+                }
+                Opcode::Jump(target) => {
+                    self.ip = *target;
+                    continue;
+                }
+                Opcode::RepeatStart(target) => {
+                    // Loop start - save current ip as target for repeat end
+                    self.ip = *target;
+                    continue;
+                }
+                Opcode::RepeatEnd => {
+                    // Jump back to repeat start (simple loop)
+                    self.ip = 0; // placeholder - real loop logic later
+                }
+                Opcode::Call(name, arg_count) => {
+                    if let Some((param_count, start_ip)) = self.functions.get(name) {
+                        if *arg_count != *param_count {
+                            panic!("Function call argument mismatch");
+                        }
+                        // Push return address
+                        self.call_stack.push(self.ip + 1);
+                        self.ip = *start_ip;
+                        continue;
+                    } else {
+                        panic!("Function {} not defined", name);
+                    }
+                }
                 Opcode::Return => {
-                    println!("VM: Return executed");
-                    break;
+                    if let Some(return_ip) = self.call_stack.pop() {
+                        self.ip = return_ip;
+                    } else {
+                        println!("VM: Program ended");
+                        break;
+                    }
                 }
                 _ => println!("VM: Unsupported opcode {:?}", op),
             }
@@ -57,4 +109,4 @@ impl VM {
 
         println!("VM execution complete!");
     }
-          }
+}
