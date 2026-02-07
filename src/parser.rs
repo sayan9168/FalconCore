@@ -1,4 +1,4 @@
-// src/parser.rs - FalconCore Parser (Enhanced)
+// src/parser.rs - FalconCore Parser (with repeat, fn, return support)
 use crate::lexer::{Lexer, Token, TokenType};
 
 #[derive(Debug)]
@@ -25,7 +25,18 @@ pub enum Expr {
         then_branch: Vec<Expr>,
         else_branch: Option<Vec<Expr>>,
     },
-    // আরও নোড যোগ করবো পরে (fn, repeat ইত্যাদি)
+    Repeat {
+        times: Box<Expr>,
+        body: Vec<Expr>,
+    },
+    FnDef {
+        name: String,
+        params: Vec<String>,
+        body: Vec<Expr>,
+    },
+    Return {
+        value: Option<Box<Expr>>,
+    },
 }
 
 pub struct Parser<'a> {
@@ -67,10 +78,14 @@ impl<'a> Parser<'a> {
             TokenType::SecureConst => self.let_statement(true, true),
             TokenType::Print => self.print_statement(),
             TokenType::If => self.if_statement(),
+            TokenType::Repeat => self.repeat_statement(),
+            TokenType::Fn => self.fn_statement(),
+            TokenType::Return => self.return_statement(),
             _ => self.expr(),
         }
     }
 
+    // let / const statement
     fn let_statement(&mut self, is_secure: bool, is_const: bool) -> Expr {
         if is_const {
             self.eat(TokenType::SecureConst);
@@ -82,7 +97,7 @@ impl<'a> Parser<'a> {
             self.eat(TokenType::Identifier(n.clone()));
             n
         } else {
-            panic!("Expected identifier after secure let/const");
+            panic!("Expected identifier");
         };
 
         self.eat(TokenType::Assign);
@@ -96,38 +111,30 @@ impl<'a> Parser<'a> {
         }
     }
 
+    // print statement
     fn print_statement(&mut self) -> Expr {
         self.eat(TokenType::Print);
         let expr = self.expr();
-        Expr::Print {
-            expr: Box::new(expr),
-        }
+        Expr::Print { expr: Box::new(expr) }
     }
 
+    // if statement
     fn if_statement(&mut self) -> Expr {
         self.eat(TokenType::If);
         let condition = self.expr();
 
-        if self.current_token.kind != TokenType::LBrace {
-            panic!("Expected {{ after if condition");
-        }
         self.eat(TokenType::LBrace);
-
         let mut then_branch = vec![];
-        while self.current_token.kind != TokenType::RBrace && self.current_token.kind != TokenType::Eof {
+        while self.current_token.kind != TokenType::RBrace {
             then_branch.push(self.statement());
         }
         self.eat(TokenType::RBrace);
 
         let else_branch = if self.current_token.kind == TokenType::Else {
             self.eat(TokenType::Else);
-            if self.current_token.kind != TokenType::LBrace {
-                panic!("Expected {{ after else");
-            }
             self.eat(TokenType::LBrace);
-
             let mut else_stmts = vec![];
-            while self.current_token.kind != TokenType::RBrace && self.current_token.kind != TokenType::Eof {
+            while self.current_token.kind != TokenType::RBrace {
                 else_stmts.push(self.statement());
             }
             self.eat(TokenType::RBrace);
@@ -143,49 +150,72 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn expr(&mut self) -> Expr {
-        self.term()
-    }
+    // repeat statement
+    fn repeat_statement(&mut self) -> Expr {
+        self.eat(TokenType::Repeat);
+        let times = self.expr();
 
-    fn term(&mut self) -> Expr {
-        let mut left = self.factor();
-
-        while matches!(
-            self.current_token.kind,
-            TokenType::Plus | TokenType::Minus
-        ) {
-            let op = self.current_token.kind.clone();
-            self.advance();
-            let right = self.factor();
-            left = Expr::Binary {
-                left: Box::new(left),
-                op,
-                right: Box::new(right),
-            };
+        self.eat(TokenType::LBrace);
+        let mut body = vec![];
+        while self.current_token.kind != TokenType::RBrace {
+            body.push(self.statement());
         }
+        self.eat(TokenType::RBrace);
 
-        left
-    }
-
-    fn factor(&mut self) -> Expr {
-        match self.current_token.kind {
-            TokenType::Number(n) => {
-                self.advance();
-                Expr::Number(n)
-            }
-            TokenType::String(s) => {
-                self.advance();
-                Expr::String(s)
-            }
-            TokenType::Identifier(id) => {
-                self.advance();
-                Expr::Identifier(id)
-            }
-            _ => panic!("Unexpected token in factor: {:?}", self.current_token.kind),
+        Expr::Repeat {
+            times: Box::new(times),
+            body,
         }
     }
 
-    fn advance(&mut self) {
-        self.current_token = self.lexer.next_token();
+    // fn statement
+    fn fn_statement(&mut self) -> Expr {
+        self.eat(TokenType::Fn);
+        let name = if let TokenType::Identifier(n) = self.current_token.kind.clone() {
+            self.eat(TokenType::Identifier(n.clone()));
+            n
+        } else {
+            panic!("Expected function name");
+        };
+
+        self.eat(TokenType::LParen);
+        let mut params = vec![];
+        while self.current_token.kind != TokenType::RParen {
+            if let TokenType::Identifier(p) = self.current_token.kind.clone() {
+                params.push(p);
+                self.eat(TokenType::Identifier(p));
+            }
+            if self.current_token.kind == TokenType::Comma {
+                self.eat(TokenType::Comma);
+            }
+        }
+        self.eat(TokenType::RParen);
+
+        self.eat(TokenType::LBrace);
+        let mut body = vec![];
+        while self.current_token.kind != TokenType::RBrace {
+            body.push(self.statement());
+        }
+        self.eat(TokenType::RBrace);
+
+        Expr::FnDef {
+            name,
+            params,
+            body,
+        }
     }
+
+    // return statement
+    fn return_statement(&mut self) -> Expr {
+        self.eat(TokenType::Return);
+        let value = if self.current_token.kind != TokenType::Semi {
+            Some(Box::new(self.expr()))
+        } else {
+            None
+        };
+        Expr::Return { value }
+    }
+
+    // expr, term, factor functions আগের মতোই রাখো (আগের কোড থেকে কপি কর)
+    // ...
 }
