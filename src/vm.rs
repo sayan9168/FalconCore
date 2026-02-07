@@ -1,4 +1,4 @@
-// src/vm.rs - FalconCore VM (More opcodes + full function call)
+// src/vm.rs - FalconCore VM (Enhanced with Sub, Mul, Div, Compare opcodes)
 use crate::compiler::Opcode;
 use crate::parser::Expr;
 use std::collections::HashMap;
@@ -11,7 +11,7 @@ pub struct VM {
     variables: HashMap<String, Expr>,
     functions: HashMap<String, (Vec<String>, usize)>, // name → (params, start_ip)
     call_stack: Vec<(usize, HashMap<String, Expr>)>, // return_ip + saved locals
-    loop_stack: Vec<(usize, i64)>, // loop_start_ip + remaining_iterations
+    loop_stack: Vec<(usize, i64)>, // loop_start_ip + remaining_count
 }
 
 impl VM {
@@ -43,6 +43,8 @@ impl VM {
                     let value = self.stack.pop().unwrap();
                     self.variables.insert(name, value);
                 }
+
+                // Math opcodes
                 Opcode::Add => {
                     let right = self.stack.pop().unwrap();
                     let left = self.stack.pop().unwrap();
@@ -82,6 +84,39 @@ impl VM {
                         panic!("Div only supports numbers");
                     }
                 }
+
+                // Compare opcodes
+                Opcode::Greater => {
+                    let right = self.stack.pop().unwrap();
+                    let left = self.stack.pop().unwrap();
+                    let result = if let (Expr::Number(a), Expr::Number(b)) = (left, right) {
+                        if a > b { 1 } else { 0 }
+                    } else {
+                        0
+                    };
+                    self.stack.push(Expr::Number(result));
+                }
+                Opcode::Less => {
+                    let right = self.stack.pop().unwrap();
+                    let left = self.stack.pop().unwrap();
+                    let result = if let (Expr::Number(a), Expr::Number(b)) = (left, right) {
+                        if a < b { 1 } else { 0 }
+                    } else {
+                        0
+                    };
+                    self.stack.push(Expr::Number(result));
+                }
+                Opcode::Equal => {
+                    let right = self.stack.pop().unwrap();
+                    let left = self.stack.pop().unwrap();
+                    let result = if let (Expr::Number(a), Expr::Number(b)) = (left, right) {
+                        if a == b { 1 } else { 0 }
+                    } else {
+                        0
+                    };
+                    self.stack.push(Expr::Number(result));
+                }
+
                 Opcode::Print => {
                     let value = self.stack.pop().unwrap();
                     match value {
@@ -90,6 +125,7 @@ impl VM {
                         _ => println!("{:?}", value),
                     }
                 }
+
                 Opcode::JumpIfFalse(target) => {
                     let cond = self.stack.pop().unwrap();
                     if let Expr::Number(n) = cond {
@@ -103,6 +139,7 @@ impl VM {
                     self.ip = target;
                     continue;
                 }
+
                 Opcode::RepeatStart => {
                     let times = if let Expr::Number(n) = self.stack.pop().unwrap() {
                         n
@@ -121,6 +158,7 @@ impl VM {
                         }
                     }
                 }
+
                 Opcode::Call(name, arg_count) => {
                     if let Some((params, start_ip)) = self.functions.get(&name) {
                         if *arg_count != params.len() {
