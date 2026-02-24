@@ -202,3 +202,4 @@ impl Compiler {
         &self.constants
     }
 }
+Opcode::NetworkScan,
