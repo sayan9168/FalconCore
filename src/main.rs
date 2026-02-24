@@ -297,3 +297,7 @@ fn main() {
     println!("FalconCore v0.1 - REPL Mode");
     start_repl();
     }
+if std::env::args().any(|arg| arg == "--jit") {
+    // JIT mode
+    jit_compile(&compiler.get_code()).unwrap();
+}
