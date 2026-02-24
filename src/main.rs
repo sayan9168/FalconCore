@@ -315,3 +315,8 @@ if std::env::args().any(|arg| arg == "--jit") {
     jit_test_loop().unwrap();
     return;
 }
+let code = r#"
+    secure let subnet = "192.168.1"
+    secure let devices = network.scan subnet
+    print "Found " + devices.length + " devices"
+"#;
