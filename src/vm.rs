@@ -43,7 +43,20 @@ impl VM {
                     let value = self.stack.pop().unwrap();
                     self.variables.insert(name, value);
                 }
+Opcode::NetworkScan => {
+    let subnet = if let Expr::String(s) = self.stack.pop().unwrap() {
+        s
+    } else {
+        panic!("network.scan expects string subnet");
+    };
 
+    let net = NetworkStack::new();
+    let devices = net.scan(&subnet, &[80, 443]); // example ports
+    let device_list = devices.iter().map(|(ip, _)| Expr::String(ip.clone())).collect::<Vec<Expr>>();
+
+    self.stack.push(Expr::List(device_list));
+    println!("VM: network.scan completed - {} devices found", devices.len());
+}
                 // Math opcodes
                 Opcode::Add => {
                     let right = self.stack.pop().unwrap();
