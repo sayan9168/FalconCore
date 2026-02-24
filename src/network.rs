@@ -289,3 +289,70 @@ impl NetworkStack {
         table.get(ip).cloned().unwrap_or_else(|| "Unknown".to_string())
     }
             }
+// src/network.rs - FalconCore Network Stack (Real ARP parsing + multi-port + report)
+use std::net::{TcpStream, SocketAddr};
+use std::time::Duration;
+use std::fs::File;
+use std::io::{self, BufRead};
+use std::collections::HashMap;
+
+pub struct NetworkStack;
+
+impl NetworkStack {
+    pub fn new() -> Self {
+        NetworkStack
+    }
+
+    pub fn scan(&self, subnet: &str, ports: &[u16]) -> Vec<(String, Vec<u16>)> {
+        let mut devices = vec![];
+        for i in 1..=254 {
+            let ip = format!("{}.{}", subnet, i);
+            let mut open_ports = vec![];
+
+            for &port in ports {
+                let addr: SocketAddr = format!("{}:{}", ip, port).parse().unwrap();
+                if let Ok(mut stream) = TcpStream::connect_timeout(&addr, Duration::from_millis(100)) {
+                    open_ports.push(port);
+                    drop(stream);
+                }
+            }
+
+            if !open_ports.is_empty() {
+                devices.push((ip, open_ports));
+            }
+        }
+        devices
+    }
+
+    pub fn arp_table(&self) -> HashMap<String, String> {
+        let mut table = HashMap::new();
+        if let Ok(file) = File::open("/proc/net/arp") {
+            let reader = io::BufReader::new(file);
+            for line in reader.lines() {
+                if let Ok(l) = line {
+                    let parts: Vec<&str> = l.split_whitespace().collect();
+                    if parts.len() > 3 && parts[0].contains('.') && parts[3].contains(':') && parts[3] != "00:00:00:00:00:00" {
+                        table.insert(parts[0].to_string(), parts[3].to_string());
+                    }
+                }
+            }
+        }
+        table
+    }
+
+    pub fn get_mac(&self, ip: &str) -> String {
+        let table = self.arp_table();
+        table.get(ip).cloned().unwrap_or_else(|| "Unknown".to_string())
+    }
+
+    pub fn report(&self, devices: &[(String, Vec<u16>)]) {
+        println!("\nFalconCore Network Scan Report");
+        println!("Total active devices: {}", devices.len());
+        println!("--------------------------------------------------");
+        for (ip, ports) in devices {
+            println!("IP: {} | Open Ports: {:?}", ip, ports);
+            println!("   MAC: {}", self.get_mac(ip));
+            println!("--------------------------------------------------");
+        }
+    }
+            }
