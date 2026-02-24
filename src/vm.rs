@@ -1,4 +1,4 @@
-// src/vm.rs - FalconCore VM (Enhanced with Greater, Less, Equal opcodes)
+// src/vm.rs - FalconCore VM (Complete with And, Or, Not + logical ops)
 use crate::compiler::Opcode;
 use crate::parser::Expr;
 use std::collections::HashMap;
@@ -10,8 +10,8 @@ pub struct VM {
     ip: usize,
     variables: HashMap<String, Expr>,
     functions: HashMap<String, (Vec<String>, usize)>, // name → (params, start_ip)
-    call_stack: Vec<(usize, HashMap<String, Expr>)>, // return_ip + saved locals
-    loop_stack: Vec<(usize, i64)>, // loop_start_ip + remaining_count
+    call_stack: Vec<(usize, HashMap<String, Expr>)>,
+    loop_stack: Vec<(usize, i64)>,
 }
 
 impl VM {
@@ -32,9 +32,7 @@ impl VM {
         while self.ip < self.code.len() {
             let op = self.code[self.ip].clone();
             match op {
-                Opcode::LoadConst(idx) => {
-                    self.stack.push(self.constants[idx].clone());
-                }
+                Opcode::LoadConst(idx) => self.stack.push(self.constants[idx].clone()),
                 Opcode::LoadVar(name) => {
                     let value = self.variables.get(&name).cloned().unwrap_or(Expr::String("undefined".to_string()));
                     self.stack.push(value);
@@ -43,28 +41,12 @@ impl VM {
                     let value = self.stack.pop().unwrap();
                     self.variables.insert(name, value);
                 }
-Opcode::NetworkScan => {
-    let subnet = if let Expr::String(s) = self.stack.pop().unwrap() {
-        s
-    } else {
-        panic!("network.scan expects string subnet");
-    };
 
-    let net = NetworkStack::new();
-    let devices = net.scan(&subnet, &[80, 443]); // example ports
-    let device_list = devices.iter().map(|(ip, _)| Expr::String(ip.clone())).collect::<Vec<Expr>>();
-
-    self.stack.push(Expr::List(device_list));
-    println!("VM: network.scan completed - {} devices found", devices.len());
-}
-                // Math opcodes
                 Opcode::Add => {
                     let right = self.stack.pop().unwrap();
                     let left = self.stack.pop().unwrap();
                     if let (Expr::Number(a), Expr::Number(b)) = (left, right) {
                         self.stack.push(Expr::Number(a + b));
-                    } else {
-                        panic!("Add only supports numbers");
                     }
                 }
                 Opcode::Sub => {
@@ -72,8 +54,6 @@ Opcode::NetworkScan => {
                     let left = self.stack.pop().unwrap();
                     if let (Expr::Number(a), Expr::Number(b)) = (left, right) {
                         self.stack.push(Expr::Number(a - b));
-                    } else {
-                        panic!("Sub only supports numbers");
                     }
                 }
                 Opcode::Mul => {
@@ -81,52 +61,39 @@ Opcode::NetworkScan => {
                     let left = self.stack.pop().unwrap();
                     if let (Expr::Number(a), Expr::Number(b)) = (left, right) {
                         self.stack.push(Expr::Number(a * b));
-                    } else {
-                        panic!("Mul only supports numbers");
                     }
                 }
                 Opcode::Div => {
                     let right = self.stack.pop().unwrap();
                     let left = self.stack.pop().unwrap();
                     if let (Expr::Number(a), Expr::Number(b)) = (left, right) {
-                        if b == 0 {
-                            panic!("Division by zero");
-                        }
+                        if b == 0 { panic!("Division by zero"); }
                         self.stack.push(Expr::Number(a / b));
-                    } else {
-                        panic!("Div only supports numbers");
                     }
                 }
 
-                // Compare opcodes (push 1 for true, 0 for false)
-                Opcode::Greater => {
+                // Logical opcodes (1 = true, 0 = false)
+                Opcode::And => {
                     let right = self.stack.pop().unwrap();
                     let left = self.stack.pop().unwrap();
                     let result = if let (Expr::Number(a), Expr::Number(b)) = (left, right) {
-                        if a > b { 1 } else { 0 }
-                    } else {
-                        0
-                    };
+                        if a != 0 && b != 0 { 1 } else { 0 }
+                    } else { 0 };
                     self.stack.push(Expr::Number(result));
                 }
-                Opcode::Less => {
+                Opcode::Or => {
                     let right = self.stack.pop().unwrap();
                     let left = self.stack.pop().unwrap();
                     let result = if let (Expr::Number(a), Expr::Number(b)) = (left, right) {
-                        if a < b { 1 } else { 0 }
-                    } else {
-                        0
-                    };
+                        if a != 0 || b != 0 { 1 } else { 0 }
+                    } else { 0 };
                     self.stack.push(Expr::Number(result));
                 }
-                Opcode::Equal => {
-                    let right = self.stack.pop().unwrap();
-                    let left = self.stack.pop().unwrap();
-                    let result = if let (Expr::Number(a), Expr::Number(b)) = (left, right) {
-                        if a == b { 1 } else { 0 }
-                    } else {
-                        0
-                    };
+                Opcode::Not => {
+                    let value = self.stack.pop().unwrap();
+                    let result = if let Expr::Number(n) = value {
+                        if n == 0 { 1 } else { 0 }
+                    } else { 0 };
                     self.stack.push(Expr::Number(result));
                 }
 
@@ -175,22 +142,17 @@ Opcode::NetworkScan => {
                 Opcode::Call(name, arg_count) => {
                     if let Some((params, start_ip)) = self.functions.get(&name) {
                         if *arg_count != params.len() {
-                            panic!("Argument count mismatch for {}", name);
+                            panic!("Argument count mismatch");
                         }
-
                         let mut locals = HashMap::new();
                         for param in params.iter().rev() {
                             let arg = self.stack.pop().unwrap();
                             locals.insert(param.clone(), arg);
                         }
-
                         self.call_stack.push((self.ip + 1, self.variables.clone()));
                         self.variables = locals;
-
                         self.ip = *start_ip;
                         continue;
-                    } else {
-                        panic!("Function {} not defined", name);
                     }
                 }
                 Opcode::Return => {
@@ -199,15 +161,13 @@ Opcode::NetworkScan => {
                         self.ip = return_ip;
                         continue;
                     } else {
-                        println!("VM: Program ended");
                         break;
                     }
                 }
-                _ => println!("VM: Unsupported opcode {:?}", op),
+                _ => println!("Unsupported opcode: {:?}", op),
             }
             self.ip += 1;
         }
-
-        println!("VM execution complete!");
+        println!("VM finished!");
     }
-                }
+                            }
