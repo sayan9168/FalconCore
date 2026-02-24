@@ -267,3 +267,10 @@ impl<'a> Parser<'a> {
         self.current_token = self.lexer.next_token();
     }
                  }
+fn network_scan_statement(&mut self) -> Expr {
+    self.eat(TokenType::NetworkScan);
+    let subnet = self.expr();
+    Expr::NetworkScan {
+        subnet: Box::new(subnet),
+    }
+}
