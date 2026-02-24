@@ -310,3 +310,8 @@ if std::env::args().any(|arg| arg == "--aot") {
 } else {
     start_repl();
 }
+if std::env::args().any(|arg| arg == "--jit") {
+    println!("JIT test: looping 10000 times");
+    jit_test_loop().unwrap();
+    return;
+}
