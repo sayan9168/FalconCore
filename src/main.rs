@@ -301,3 +301,12 @@ if std::env::args().any(|arg| arg == "--jit") {
     // JIT mode
     jit_compile(&compiler.get_code()).unwrap();
 }
+if std::env::args().any(|arg| arg == "--aot") {
+    // AOT compile example
+    let ast = /* parse your code */;
+    let binary = compile_to_executable(&ast).unwrap();
+    std::fs::write("falconcore_binary", binary).unwrap();
+    println!("AOT binary created: falconcore_binary");
+} else {
+    start_repl();
+}
