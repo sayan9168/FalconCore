@@ -1,322 +1,36 @@
-mod lexer;
-mod parser;
-mod compiler;
-mod vm;
-mod network;
-
-use lexer::Lexer;
-use parser::Parser;
-use compiler::Compiler;
-use vm::VM;
-use network::NetworkStack;
+use falconcore::{compiler::Compiler, lexer::Lexer, parser::Parser, vm::VM};
 
 fn main() {
-    println!("FalconCore v0.1 - Full Pipeline + Advanced VM + Network Test");
-
-    let code = r#"
+    let source = r#"
         secure let x = 10
-        secure let y = 5
+        secure let y = 32
         print x + y
 
         repeat 3 {
-            print "Loop iteration"
+            print "FalconCore"
         }
 
-        fn add(a, b) {
-            return a + b
-        }
-
-        secure let sum = add(20, 30)
-        print sum
-
-        secure let subnet = "192.168.1"
-        secure let devices = network.scan subnet
-        print "Found " + devices.length + " devices"
-    "#;
-
-    // Lexer → Parser → Compiler
-    let lexer = Lexer::new(code);
-    let mut parser = Parser::new(lexer);
-    let ast = parser.parse();
-
-    let mut compiler = Compiler::new();
-    compiler.compile(ast);
-
-    // VM
-    let mut vm = VM::new(compiler.get_constants().clone(), compiler.get_code().clone());
-    vm.run();
-
-    // Network test
-    let net = NetworkStack::new();
-    let devices = net.scan("192.168.1");
-    println!("\nNetwork Scan Result: {} devices found", devices.len());
-    for ip in devices {
-        println!(" - {} (MAC: {})", ip, net.get_mac(&ip));
-    }
-}mod lexer;
-mod parser;
-mod compiler;
-mod vm;
-mod network;
-
-use lexer::Lexer;
-use parser::Parser;
-use compiler::Compiler;
-use vm::VM;
-use network::NetworkStack;
-
-fn main() {
-    println!("FalconCore v0.1 - Full Pipeline + Network Stack Test");
-
-    let code = r#"
-        secure let subnet = "192.168.1"
-        secure let devices = network.scan subnet
-        print "Found " + devices.length + " devices"
-        print "Hello from FalconCore VM!"
-    "#;
-
-    let lexer = Lexer::new(code);
-    let mut parser = Parser::new(lexer);
-    let ast = parser.parse();
-
-    println!("\nAST:");
-    for node in &ast {
-        println!("{:#?}", node);
-    }
-
-    let mut compiler = Compiler::new();
-    compiler.compile(ast);
-
-    println!("\nBytecode:");
-    for (i, op) in compiler.get_code().iter().enumerate() {
-        println!("{:03}: {:?}", i, op);
-    }
-
-    let mut vm = VM::new(compiler.get_constants().clone(), compiler.get_code().clone());
-    vm.run();
-
-    // Network test
-    let net = NetworkStack::new();
-    let devices = net.scan("192.168.1");
-    println!("\nNetwork Scan Result (placeholder): {} devices", devices.len());
-}
-use falconcore::lexer::{Lexer, TokenType};
-
-fn main() {
-    println!("FalconCore v0.1 - Lexer Test");
-
-    let code = r#"
-    secure let x = 42
-    print "Hello from FalconCore!"
-    if x > 10 {
-        print "x is greater than 10"
-    }
-    "#;
-
-    let mut lexer = Lexer::new(code);
-    loop {
-        let token = lexer.next_token();
-        println!("{:?}", token);
-        if token.kind == TokenType::Eof {
-            break;
-        }
-    }
-
-    println!("Lexer test complete!");
-}
-mod lexer;
-mod parser;
-
-use lexer::Lexer;
-use parser::Parser;
-
-fn main() {
-    println!("FalconCore v0.1 - Lexer + Parser Test");
-
-    let code = r#"
-        secure let x = 42
-        secure let y = "Hello from FalconCore!"
-        print x + 8
-        print y
-    "#;
-
-    let lexer = Lexer::new(code);
-    let mut parser = Parser::new(lexer);
-
-    let ast = parser.parse();
-
-    println!("AST:");
-    for node in ast {
-        println!("{:?}", node);
-    }
-
-    println!("Parsing complete!");
-}
-mod lexer;
-mod parser;
-
-use lexer::Lexer;
-use parser::Parser;
-
-fn main() {
-    println!("FalconCore v0.1 - Lexer + Parser Test");
-
-    let code = r#"
-        secure let x = 42
-        secure const pi = 3.14
-        print "Hello from FalconCore!"
-        if x > 10 {
-            print "x is greater than 10"
+        if x < y {
+            print "comparison: true"
         } else {
-            print "x is small"
+            print "comparison: false"
         }
     "#;
 
-    let lexer = Lexer::new(code);
-    let mut parser = Parser::new(lexer);
-
-    let ast = parser.parse();
-
-    println!("AST:");
-    for node in ast {
-        println!("{:#?}", node);
+    if let Err(error) = run_source(source) {
+        eprintln!("FalconCore runtime error: {error:?}");
+        std::process::exit(1);
     }
-
-    println!("Parsing complete!");
 }
-mod lexer;
-mod parser;
-mod compiler;
 
-use lexer::Lexer;
-use parser::Parser;
-use compiler::Compiler;
-
-fn main() {
-    println!("FalconCore v0.1 - Full Pipeline Test");
-
-    let code = r#"
-        secure let x = 42
-        secure let y = 8
-        print x + y
-    "#;
-
-    // Lexer
-    let lexer = Lexer::new(code);
-
-    // Parser
+fn run_source(source: &str) -> Result<(), falconcore::vm::RuntimeError> {
+    let lexer = Lexer::new(source);
     let mut parser = Parser::new(lexer);
     let ast = parser.parse();
 
-    println!("AST:");
-    for node in &ast {
-        println!("{:#?}", node);
-    }
-
-    // Compiler
     let mut compiler = Compiler::new();
     compiler.compile(ast);
 
-    println!("\nGenerated Bytecode:");
-    for (i, op) in compiler.get_code().iter().enumerate() {
-        println!("{:03}: {:?}", i, op);
-    }
-
-    println!("\nConstants:");
-    for (i, const_val) in compiler.get_constants().iter().enumerate() {
-        println!("{:03}: {:?}", i, const_val);
-    }
+    let mut vm = VM::new(compiler.get_constants().to_vec(), compiler.get_code().to_vec());
+    vm.run()
 }
-mod lexer;
-mod parser;
-mod compiler;
-mod vm;
-
-use lexer::Lexer;
-use parser::Parser;
-use compiler::Compiler;
-use vm::VM;
-
-fn main() {
-    println!("FalconCore v0.1 - Full Pipeline: Lexer → Parser → Compiler → VM");
-
-    let code = r#"
-        secure let x = 42
-        secure let y = 8
-        print x + y
-        print "Hello from FalconCore VM!"
-    "#;
-
-    // Lexer
-    let lexer = Lexer::new(code);
-
-    // Parser
-    let mut parser = Parser::new(lexer);
-    let ast = parser.parse();
-
-    println!("\nAST:");
-    for node in &ast {
-        println!("{:#?}", node);
-    }
-
-    // Compiler
-    let mut compiler = Compiler::new();
-    compiler.compile(ast);
-
-    println!("\nGenerated Bytecode:");
-    for (i, op) in compiler.get_code().iter().enumerate() {
-        println!("{:03}: {:?}", i, op);
-    }
-
-    println!("\nConstants:");
-    for (i, const_val) in compiler.get_constants().iter().enumerate() {
-        println!("{:03}: {:?}", i, const_val);
-    }
-
-    // VM
-    let mut vm = VM::new(compiler.get_constants().clone(), compiler.get_code().clone());
-    vm.run();
-}
-// Network test
-let net = NetworkStack::new();
-let devices = net.scan("192.168.1");
-println!("Network Scan Result: {} devices found", devices.len());
-for ip in devices {
-    println!(" - {}", ip);
-}
-mod lexer;
-mod parser;
-mod compiler;
-mod vm;
-mod network;
-mod repl;
-
-use repl::start_repl;
-
-fn main() {
-    println!("FalconCore v0.1 - REPL Mode");
-    start_repl();
-    }
-if std::env::args().any(|arg| arg == "--jit") {
-    // JIT mode
-    jit_compile(&compiler.get_code()).unwrap();
-}
-if std::env::args().any(|arg| arg == "--aot") {
-    // AOT compile example
-    let ast = /* parse your code */;
-    let binary = compile_to_executable(&ast).unwrap();
-    std::fs::write("falconcore_binary", binary).unwrap();
-    println!("AOT binary created: falconcore_binary");
-} else {
-    start_repl();
-}
-if std::env::args().any(|arg| arg == "--jit") {
-    println!("JIT test: looping 10000 times");
-    jit_test_loop().unwrap();
-    return;
-}
-let code = r#"
-    secure let subnet = "192.168.1"
-    secure let devices = network.scan subnet
-    print "Found " + devices.length + " devices"
-"#;
