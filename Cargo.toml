@@ -1,17 +1,19 @@
 [package]
 name = "falconcore"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
+description = "FalconCore — a security-minded, AI-native programming language runtime."
+license = "Apache-2.0"
+readme = "README.md"
 
-[dependencies]
-# পরে যোগ করবো যেমন: clap, anyhow ইত্যাদি
 [dependencies]
 cranelift = "0.108"
 cranelift-module = "0.108"
 cranelift-object = "0.108"
 cranelift-jit = "0.108"
-[dependencies]
-cranelift = "0.108"
-cranelift-module = "0.108"
-cranelift-object = "0.108"
 object = { version = "0.35", features = ["write_core"] }
+
+[profile.release]
+lto = true
+codegen-units = 1
+panic = "abort"
