@@ -54,7 +54,6 @@ impl<'a> Parser<'a> {
     }
 
     fn let_statement(&mut self, is_const: bool) -> Expr {
-        let token = self.current_token.kind.clone();
         self.advance();
         let name = self.expect_identifier("expected identifier after secure let/const");
         self.expect(TokenType::Assign);
