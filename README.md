@@ -1,113 +1,88 @@
 # FalconCore
 
 ![CI](https://github.com/sayan9168/FalconCore/actions/workflows/ci.yml/badge.svg)
-![Version](https://img.shields.io/badge/version-0.2.0-blue?style=for-the-badge)
-![License](https://img.shields.io/badge/license-Apache--2.0-green?style=for-the-badge)
 
-**FalconCore** is an experimental, security-minded programming language built from scratch in Rust. The project focuses on a small, embeddable execution pipeline that can evolve toward an independent runtime, VM and native tooling ecosystem.
+FalconCore is an experimental, security-minded programming language and embeddable runtime built in Rust.
 
-## v0.2 highlights
+## v0.3 — Execution Engine Jump
 
-- Clean lexer → parser → bytecode compiler → VM pipeline
-- Precedence-aware arithmetic parsing (`+`, `-`, `*`, `/`)
-- Comparison operators (`==`, `!=`, `>`, `<`, `>=`, `<=`)
-- `secure let` and `secure const` syntax
-- `if` / `else` blocks
-- `repeat` blocks
-- Structured runtime errors instead of unchecked stack operations
-- Division-by-zero protection
-- Public library modules for embedding FalconCore
-- Rust unit tests and GitHub Actions CI
-- Cleaned duplicate/broken source that had accumulated in the bootstrap implementation
+- First-class integer, float and string values in the front-end
+- Function-call AST with positional arguments
+- Real VM call frames with isolated local variables
+- Function metadata and bytecode entry points
+- Recursive function calls with a bounded call stack
+- Arity validation and undefined-function errors
+- Mixed integer/float arithmetic
+- Floating-point comparisons
+- Safer return handling
+- Existing explicit `network.scan` capability boundary retained
 
-## Quick start
-
-```bash
-cargo run
-```
-
-Build a release binary:
-
-```bash
-cargo build --release
-```
-
-Run the test suite:
-
-```bash
-cargo test
-```
-
-## Language example
+## Example
 
 ```falcon
-secure let x = 10
-secure let y = 32
-
-print x + y
-
-repeat 3 {
-    print "FalconCore"
+fn add(a, b) {
+    return a + b
 }
 
-if x < y {
-    print "comparison: true"
-} else {
-    print "comparison: false"
+secure let answer = add(10, 32)
+print answer
+print 3.5 * 2.0
+
+repeat 2 {
+    print "FalconCore v0.3"
 }
 ```
 
 ## Architecture
 
 ```text
-Falcon source
-     │
-     ▼
-   Lexer
-     │ tokens
-     ▼
-   Parser
-     │ AST
-     ▼
-  Compiler
-     │ bytecode
-     ▼
-    VM
-     │
-     ▼
- Runtime
+Source
+  ↓
+Lexer → Parser → AST
+               ↓
+          Bytecode Compiler
+               ↓
+      constants + opcodes + functions
+               ↓
+        Stack VM + Call Frames
+               ↓
+        explicit capabilities
 ```
 
-The compiler and VM are intentionally kept small so future work can add a stable value representation, function ABI, module system, diagnostics, bytecode serialization, and native/AOT backends without coupling the language front-end to a particular host application.
+### Function ABI
 
-## Security direction
+Each compiled function receives its arguments from the VM stack, binds them to named local slots, and returns one value. Frames carry their own local environment and return instruction pointer. The VM enforces a maximum call depth to prevent unbounded recursion from exhausting the process stack.
 
-FalconCore is intended for legitimate software development, security research and controlled environments. Security-sensitive capabilities should be explicit, auditable and opt-in rather than hidden inside the runtime.
+## Security model
 
-The current `network.scan` syntax is represented as a capability boundary in the VM; unrestricted network activity is not silently executed by the language runtime.
+Security-sensitive operations remain explicit capabilities. The language runtime does not silently perform unrestricted network activity. `network.scan` currently returns a capability-boundary message and is intended to be connected later to an authorized host-side API.
+
+## Development
+
+```bash
+cargo fmt --all
+cargo test
+cargo clippy --all-targets --all-features -- -D warnings
+cargo run
+```
 
 ## Roadmap
 
-- [x] Lexer foundation
-- [x] Parser foundation
-- [x] Bytecode compiler foundation
-- [x] Safe VM error handling
-- [x] CI and tests
-- [ ] Structured diagnostics instead of parser panics
-- [ ] First-class value types
-- [ ] Function call frames and closures
-- [ ] Bytecode serialization/versioning
-- [ ] Package/module system
-- [ ] Stable CLI (`falcon check`, `falcon run`, `falcon build`)
-- [ ] AOT/native backend stabilization
-- [ ] Standard library and capability model
-
-## Contributing
-
-See [CONTRIBUTING.md](CONTRIBUTING.md). Please keep changes focused, tested and documented.
+- [x] Lexer / parser foundation
+- [x] Bytecode compiler
+- [x] Hardened stack VM
+- [x] Function calls and call frames
+- [x] Float support
+- [x] CI
+- [ ] Structured parser diagnostics
+- [ ] First-class `bool` / `null` values
+- [ ] Immutable-constant enforcement
+- [ ] Bytecode serialization and versioning
+- [ ] Module/package system
+- [ ] Stable CLI: `falcon check`, `falcon run`, `falcon build`
+- [ ] Capability registry and permission policy
+- [ ] Native/AOT backend stabilization
 
 ## License
 
-Apache License 2.0. See [LICENSE](LICENSE).
-
-Made with ❤️ by SAYAN.
+Apache License 2.0.

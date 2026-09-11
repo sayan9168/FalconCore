@@ -1,0 +1,7 @@
+fn multiply(a, b) {
+    return a * b
+}
+
+secure let result = multiply(6, 7)
+print result
+print 1.5 + 2.25
