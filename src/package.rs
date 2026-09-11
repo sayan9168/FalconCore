@@ -1,74 +1,26 @@
 use std::{collections::BTreeMap, fs, path::{Path, PathBuf}};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PackageManifest {
-    pub name: String,
-    pub version: String,
-    pub entry: PathBuf,
-    pub dependencies: BTreeMap<String, String>,
-}
-
+pub struct PackageManifest { pub name: String, pub version: String, pub entry: PathBuf, pub dependencies: BTreeMap<String, String> }
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LockedDependency { pub name: String, pub version: String, pub source: String, pub checksum: Option<String> }
-
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct PackageLock { pub dependencies: Vec<LockedDependency> }
-
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum PackageError { Io(String), Invalid(String) }
-
+pub enum PackageError { Io(String), Invalid(String), UnlockedDependency(String), VersionMismatch { dependency: String, requirement: String, locked: String }, MissingChecksum(String) }
 impl PackageManifest {
     pub fn new(name: impl Into<String>, version: impl Into<String>, entry: impl Into<PathBuf>) -> Self { Self { name: name.into(), version: version.into(), entry: entry.into(), dependencies: BTreeMap::new() } }
     pub fn add_dependency(&mut self, name: impl Into<String>, requirement: impl Into<String>) { self.dependencies.insert(name.into(), requirement.into()); }
-    pub fn validate(&self) -> Result<(), PackageError> {
-        if self.name.trim().is_empty() { return Err(PackageError::Invalid("package name is empty".into())); }
-        if self.version.trim().is_empty() { return Err(PackageError::Invalid("package version is empty".into())); }
-        if self.entry.as_os_str().is_empty() { return Err(PackageError::Invalid("package entry is empty".into())); }
-        if self.dependencies.keys().any(|k| k.trim().is_empty()) { return Err(PackageError::Invalid("dependency name is empty".into())); }
-        Ok(())
-    }
-    pub fn from_simple_toml(path: impl AsRef<Path>) -> Result<Self, PackageError> {
-        let text = fs::read_to_string(path.as_ref()).map_err(|e| PackageError::Io(e.to_string()))?;
-        let mut name = None; let mut version = None; let mut entry = None; let mut dependencies = BTreeMap::new(); let mut in_deps = false;
-        for raw in text.lines() {
-            let line = raw.trim(); if line.is_empty() || line.starts_with('#') { continue; }
-            if line == "[package]" { in_deps = false; continue; }
-            if line == "[dependencies]" { in_deps = true; continue; }
-            let Some((k,v)) = line.split_once('=') else { return Err(PackageError::Invalid(format!("invalid manifest line: {line}"))); };
-            let key = k.trim(); let value = v.trim().trim_matches('"').to_string();
-            if in_deps { dependencies.insert(key.to_string(), value); } else { match key { "name" => name=Some(value), "version"=>version=Some(value), "entry"=>entry=Some(PathBuf::from(value)), _=>{} } }
-        }
-        let m = Self { name:name.ok_or_else(||PackageError::Invalid("missing package.name".into()))?, version:version.ok_or_else(||PackageError::Invalid("missing package.version".into()))?, entry:entry.unwrap_or_else(||PathBuf::from("src/main.falcon")), dependencies };
-        m.validate()?; Ok(m)
-    }
+    pub fn validate(&self) -> Result<(), PackageError> { if self.name.trim().is_empty(){return Err(PackageError::Invalid("package name is empty".into()))} if self.version.trim().is_empty(){return Err(PackageError::Invalid("package version is empty".into()))} if self.entry.as_os_str().is_empty(){return Err(PackageError::Invalid("package entry is empty".into()))} if self.dependencies.keys().any(|k|k.trim().is_empty()){return Err(PackageError::Invalid("dependency name is empty".into()))} Ok(()) }
+    pub fn from_simple_toml(path: impl AsRef<Path>) -> Result<Self, PackageError> { let text=fs::read_to_string(path.as_ref()).map_err(|e|PackageError::Io(e.to_string()))?; let(mut name,mut version,mut entry)=(None,None,None); let mut dependencies=BTreeMap::new(); let mut in_deps=false; for raw in text.lines(){let line=raw.trim(); if line.is_empty()||line.starts_with('#'){continue} if line=="[package]"{in_deps=false;continue} if line=="[dependencies]"{in_deps=true;continue} let Some((k,v))=line.split_once('=') else{return Err(PackageError::Invalid(format!("invalid manifest line: {line}")))}; let key=k.trim(); let value=v.trim().trim_matches('"').to_string(); if in_deps{dependencies.insert(key.to_string(),value)}else{match key{"name"=>name=Some(value),"version"=>version=Some(value),"entry"=>entry=Some(PathBuf::from(value)),_=>{}}}} let m=Self{name:name.ok_or_else(||PackageError::Invalid("missing package.name".into()))?,version:version.ok_or_else(||PackageError::Invalid("missing package.version".into()))?,entry:entry.unwrap_or_else(||PathBuf::from("src/main.falcon")),dependencies}; m.validate()?;Ok(m) }
 }
-
 impl PackageLock {
-    pub fn add(&mut self, dependency: LockedDependency) { self.dependencies.retain(|d| d.name != dependency.name); self.dependencies.push(dependency); self.dependencies.sort_by(|a,b| a.name.cmp(&b.name).then(a.version.cmp(&b.version)).then(a.source.cmp(&b.source))); }
-    pub fn validate(&self) -> Result<(), PackageError> {
-        for pair in self.dependencies.windows(2) { if pair[0].name >= pair[1].name { return Err(PackageError::Invalid("lock dependencies must be sorted and unique".into())); } }
-        if self.dependencies.iter().any(|d| d.name.trim().is_empty() || d.version.trim().is_empty() || d.source.trim().is_empty()) { return Err(PackageError::Invalid("lock dependency contains an empty field".into())); }
-        Ok(())
-    }
-    pub fn to_lock_text(&self) -> Result<String, PackageError> {
-        self.validate()?;
-        let mut out = String::from("# FalconCore package lock v1\n\n");
-        for d in &self.dependencies {
-            out.push_str("[[package]]\n");
-            out.push_str(&format!("name = \"{}\"\nversion = \"{}\"\nsource = \"{}\"\n", escape(&d.name), escape(&d.version), escape(&d.source)));
-            if let Some(c) = &d.checksum { out.push_str(&format!("checksum = \"{}\"\n", escape(c))); }
-            out.push('\n');
-        }
-        Ok(out)
-    }
+    pub fn add(&mut self, dependency: LockedDependency) { self.dependencies.retain(|d|d.name!=dependency.name); self.dependencies.push(dependency); self.dependencies.sort_by(|a,b|a.name.cmp(&b.name).then(a.version.cmp(&b.version)).then(a.source.cmp(&b.source))); }
+    pub fn validate(&self)->Result<(),PackageError>{for pair in self.dependencies.windows(2){if pair[0].name>=pair[1].name{return Err(PackageError::Invalid("lock dependencies must be sorted and unique".into()))}} if self.dependencies.iter().any(|d|d.name.trim().is_empty()||d.version.trim().is_empty()||d.source.trim().is_empty()){return Err(PackageError::Invalid("lock dependency contains an empty field".into()))} Ok(())}
+    /// Verify that a lock fully covers a manifest and that simple version requirements are satisfied.
+    pub fn verify_against(&self, manifest:&PackageManifest)->Result<(),PackageError>{manifest.validate()?;self.validate()?;for(name,req)in &manifest.dependencies{let Some(lock)=self.dependencies.iter().find(|d|&d.name==name)else{return Err(PackageError::UnlockedDependency(name.clone()))};if !requirement_matches(req,&lock.version){return Err(PackageError::VersionMismatch{dependency:name.clone(),requirement:req.clone(),locked:lock.version.clone()})}if lock.source.starts_with("registry")&&lock.checksum.as_deref().unwrap_or("").trim().is_empty(){return Err(PackageError::MissingChecksum(name.clone()))}}for lock in &self.dependencies{if !manifest.dependencies.contains_key(&lock.name){return Err(PackageError::Invalid(format!("lock contains undeclared dependency {}",lock.name)))}}Ok(())}
+    pub fn to_lock_text(&self)->Result<String,PackageError>{self.validate()?;let mut out=String::from("# FalconCore package lock v1\n\n");for d in &self.dependencies{out.push_str("[[package]]\n");out.push_str(&format!("name = \"{}\"\nversion = \"{}\"\nsource = \"{}\"\n",escape(&d.name),escape(&d.version),escape(&d.source)));if let Some(c)=&d.checksum{out.push_str(&format!("checksum = \"{}\"\n",escape(c)))}out.push('\n')}Ok(out)}
 }
-
-fn escape(s: &str) -> String { s.replace('\\', "\\\\").replace('"', "\\\"") }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    #[test] fn validates_manifest() { let mut m=PackageManifest::new("demo","1.0.0","main.falcon"); m.add_dependency("std","1"); assert!(m.validate().is_ok()); }
-    #[test] fn parses_minimal_manifest() { let path=std::env::temp_dir().join(format!("falconcore-{}-manifest.toml",std::process::id())); fs::write(&path,"[package]\nname=\"demo\"\nversion=\"1.0.0\"\nentry=\"main.falcon\"\n[dependencies]\ncore=\"1\"\n").unwrap(); let m=PackageManifest::from_simple_toml(&path).unwrap(); fs::remove_file(path).ok(); assert_eq!(m.dependencies["core"],"1"); }
-    #[test] fn lock_is_deterministic() { let mut l=PackageLock::default(); l.add(LockedDependency{name:"z".into(),version:"1".into(),source:"registry".into(),checksum:None}); l.add(LockedDependency{name:"a".into(),version:"2".into(),source:"registry".into(),checksum:Some("abc".into())}); let text=l.to_lock_text().unwrap(); assert!(text.find("name = \"a\"").unwrap() < text.find("name = \"z\"").unwrap()); }
-}
+fn requirement_matches(req:&str,version:&str)->bool{let r=req.trim();r=="*"||r==version||r.trim_start_matches('=')==version||r.strip_prefix('^').map(|v|version==v||version.starts_with(&format!("{}.",v.trim_end_matches(".0")))).unwrap_or(false)}
+fn escape(s:&str)->String{s.replace('\\',"\\\\").replace('"',"\\\"")}
+#[cfg(test)]mod tests{use super::*;#[test]fn validates_manifest(){let mut m=PackageManifest::new("demo","1.0.0","main.falcon");m.add_dependency("std","1.0.0");assert!(m.validate().is_ok())}#[test]fn parses_minimal_manifest(){let path=std::env::temp_dir().join(format!("falconcore-{}-manifest.toml",std::process::id()));fs::write(&path,"[package]\nname=\"demo\"\nversion=\"1.0.0\"\nentry=\"main.falcon\"\n[dependencies]\ncore=\"1\"\n").unwrap();let m=PackageManifest::from_simple_toml(&path).unwrap();fs::remove_file(path).ok();assert_eq!(m.dependencies["core"],"1")}#[test]fn lock_is_deterministic(){let mut l=PackageLock::default();l.add(LockedDependency{name:"z".into(),version:"1".into(),source:"registry".into(),checksum:None});l.add(LockedDependency{name:"a".into(),version:"2".into(),source:"registry".into(),checksum:Some("abc".into())});let text=l.to_lock_text().unwrap();assert!(text.find("name = \"a\"").unwrap()<text.find("name = \"z\"").unwrap())}#[test]fn verifies_manifest_lock(){let mut m=PackageManifest::new("demo","1","main.falcon");m.add_dependency("core","1.0.0");let mut l=PackageLock::default();l.add(LockedDependency{name:"core".into(),version:"1.0.0".into(),source:"registry".into(),checksum:Some("sha256:abc".into())});assert!(l.verify_against(&m).is_ok())}}
