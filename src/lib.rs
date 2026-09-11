@@ -1,6 +1,7 @@
 //! FalconCore language core and developer toolchain.
 pub mod bytecode;
 pub mod compiler;
+pub mod diagnostics;
 pub mod lexer;
 pub mod parser;
 pub mod typecheck;
@@ -10,7 +11,7 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[cfg(test)]
 mod tests {
-    use super::{compiler::Compiler, lexer::Lexer, parser::Parser, typecheck::{Type, TypeChecker}, vm::VM};
+    use super::{compiler::Compiler, diagnostics::{Diagnostic, Severity}, lexer::Lexer, parser::Parser, typecheck::{Type, TypeChecker}, vm::VM};
 
     fn parse(source: &str) -> Vec<super::parser::Expr> { Parser::new(Lexer::new(source)).parse() }
 
@@ -52,5 +53,14 @@ mod tests {
         let ast = parse("print missing(1)");
         let mut checker = TypeChecker::new();
         assert!(checker.check(&ast).is_err());
+    }
+
+    #[test]
+    fn diagnostics_render_with_code_and_help() {
+        let d = Diagnostic::error("E1001", "undefined variable: x").at(3, 7).with_help("declare x before using it");
+        assert_eq!(d.severity, Severity::Error);
+        assert!(d.to_string().contains("E1001"));
+        assert!(d.to_string().contains("3:7"));
+        assert!(d.to_string().contains("help"));
     }
 }
