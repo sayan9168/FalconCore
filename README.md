@@ -4,71 +4,49 @@
 
 FalconCore is an experimental, security-minded programming language and embeddable runtime built in Rust.
 
-## v1.1 — Real Language Platform Foundation
+## v1.2 — Cross-Module Language Platform
 
-v1.1 extends the v1.0 security/platform primitives with deterministic qualified symbol resolution, stronger capability boundaries, and reproducible package-lock output.
+v1.2 turns the v1.1 namespace foundation into a real source-level module workflow: qualified names are lexed and parsed, resolved module graphs are linked into a single compilation unit, exported declarations from dependency modules receive stable namespaces, and the CLI now runs/checks/builds the linked program.
 
 ### What's new
 
-- Qualified module references using the `module::symbol` namespace model in the symbol resolver
-- Deterministic module namespace construction with `BTreeMap`
-- Export-only qualified resolution: private symbols cannot be imported through the resolver
-- Symbol validation for empty module/symbol names
-- Capability batch authorization and usage snapshots
-- Explicit policy inspection without granting capabilities
-- Deterministic package-lock serialization
-- Lock validation for unique, sorted dependencies and required metadata
-- Escaping of package metadata in lock output
-- Version bumped to `1.1.0`
+- `::` namespace separator in the lexer
+- Qualified identifiers and calls such as `math::add(2, 3)`
+- Cross-module linker over the existing dependency resolver
+- Stable module namespaces derived from module names
+- Export-only dependency exposure
+- Import aliases mapped to the linked module namespace
+- Qualified references inside exported dependency declarations
+- CLI `run`, `check`, and `build` now use the linker for source files
+- Fixed the module AST container's invalid `Eq` derivation
+- Version bumped to `1.2.0`
 
-### Qualified symbols
+### Example
 
-The parser's existing `import` / `export` syntax remains source-compatible while the platform now has a canonical qualified-symbol representation:
+`math.falcon`:
 
-```text
-math::add
-math::answer
+```falcon
+export fn add(a, b) {
+    return a + b
+}
 ```
 
-The resolver accepts only exported symbols, making the module boundary explicit:
+`main.falcon`:
 
-```rust
-let symbol = resolve_qualified(&namespace, "math::answer")?;
+```falcon
+import "math.falcon" as math
+print math::add(2, 3)
 ```
 
-This is the platform foundation for future grammar-level namespace expressions and import binding resolution.
+Then:
 
-### Capability boundary
-
-Capabilities remain deny-by-default. v1.1 adds policy inspection, batch requests, and auditable usage snapshots without granting operating-system access automatically.
-
-```rust
-let policy = CapabilityPolicy::deny_all()
-    .allow(Capability::NetworkScan)
-    .limit(Capability::NetworkScan, 10);
-let mut registry = CapabilityRegistry::new(policy);
-registry.request(Capability::NetworkScan)?;
-let usage = registry.snapshot();
+```bash
+falconcore run main.falcon
+falconcore check main.falcon
+falconcore build main.falcon
 ```
 
-`network.scan` remains a safe placeholder until a host integrates an authorized implementation. The language runtime does not silently turn a language-level capability request into arbitrary OS access.
-
-### Reproducible package locks
-
-The package layer can now produce deterministic lock text from sorted dependency records:
-
-```rust
-let mut lock = PackageLock::default();
-lock.add(LockedDependency {
-    name: "core".into(),
-    version: "1.1.0".into(),
-    source: "registry".into(),
-    checksum: Some("...".into()),
-});
-let lock_text = lock.to_lock_text()?;
-```
-
-This is metadata only. FalconCore does not download or execute third-party packages.
+The linker keeps dependency declarations namespaced (`math::add`) while the entry module remains the executable root.
 
 ## Quick Start
 
@@ -85,7 +63,7 @@ cargo run -- --version
 ## Architecture
 
 ```text
-                         FalconCore v1.1
+                         FalconCore v1.2
                                 │
           ┌─────────────────────┼──────────────────────┐
           ↓                     ↓                      ↓
@@ -95,9 +73,9 @@ cargo run -- --version
                                 ↓
                        Module Resolution
                                 ↓
-                  Namespace + Symbol Analysis
+                    Namespace-aware Linker
                                 ↓
-                       Type Checking
+                       Symbol + Type Check
                                 ↓
                     Capability Policy Boundary
                                 ↓
@@ -112,9 +90,9 @@ cargo run -- --version
 
 ## Security Model
 
-FalconCore follows a capability-oriented model: sensitive host operations are opt-in, deny-by-default, and policy controlled. The registry supports explicit authorization, bounded use counts, batch checks, and usage snapshots. Filesystem module resolution remains scoped to the importing file's directory and rejects missing files and dependency cycles.
+FalconCore follows a capability-oriented model: sensitive host operations are opt-in, deny-by-default, and policy controlled. Module imports are resolved relative to the importing file, missing modules and dependency cycles are rejected, and the linker exposes dependency declarations only through their exported namespace. The runtime does not silently grant operating-system access.
 
-FCBC artifacts validate their magic header, format version, typed constant tags, opcode tags, UTF-8 strings, and trailing data before execution. Malformed artifacts are rejected by the decoder.
+FCBC artifacts validate their magic header, format version, typed constant tags, opcode tags, UTF-8 strings, and trailing data before execution.
 
 ## Development
 
@@ -143,13 +121,16 @@ cargo clippy --all-targets --all-features -- -D warnings
 - [x] Capability registry / policy foundation
 - [x] Package manifest / lock primitives
 - [x] Qualified symbol resolver foundation
+- [x] Namespace syntax
+- [x] Cross-module linking and CLI integration
 - [x] Deterministic package-lock serialization
 - [x] Capability usage snapshots and batch authorization
-- [ ] Namespace syntax and import binding in the language grammar
 - [ ] Immutable-constant assignment enforcement
 - [ ] Capability-aware VM opcode dispatch
 - [ ] Registry-backed dependency resolution
 - [ ] Dependency graph solver and lockfile verification
+- [ ] FCBC v3
+- [ ] Optimizer / bytecode optimization passes
 - [ ] Native/AOT backend stabilization
 - [ ] Language server / editor integration
 - [ ] Standard library and package registry
