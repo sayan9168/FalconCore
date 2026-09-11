@@ -4,49 +4,53 @@
 
 FalconCore is an experimental, security-minded programming language and embeddable runtime built in Rust.
 
-## v1.2 — Cross-Module Language Platform
+## v1.3 — Compiler + Security Runtime
 
-v1.2 turns the v1.1 namespace foundation into a real source-level module workflow: qualified names are lexed and parsed, resolved module graphs are linked into a single compilation unit, exported declarations from dependency modules receive stable namespaces, and the CLI now runs/checks/builds the linked program.
+v1.3 turns the v1.2 language platform into a safer compiler/runtime pipeline. The compiler now performs deterministic AST constant folding before bytecode generation, while sensitive runtime operations cross an explicit deny-by-default capability boundary.
 
 ### What's new
 
-- `::` namespace separator in the lexer
-- Qualified identifiers and calls such as `math::add(2, 3)`
-- Cross-module linker over the existing dependency resolver
-- Stable module namespaces derived from module names
-- Export-only dependency exposure
-- Import aliases mapped to the linked module namespace
-- Qualified references inside exported dependency declarations
-- CLI `run`, `check`, and `build` now use the linker for source files
-- Fixed the module AST container's invalid `Eq` derivation
-- Version bumped to `1.2.0`
+- Deterministic AST constant folding optimizer
+- Arithmetic and comparison folding for literal values
+- Division-by-zero expressions remain unfurled so runtime error semantics are preserved
+- Optimizer integrated directly into `Compiler::compile`
+- VM capability registry integration
+- `NetworkScan` now requires an explicitly allowed `NetworkScan` capability
+- Capability usage limits are enforced by the VM
+- New runtime errors for denied and exhausted capabilities
+- Existing `VM::new` / `with_functions` constructors remain deny-by-default
+- New `VM::with_capabilities` constructor for explicit host policy injection
+- Version bumped to `1.3.0`
 
-### Example
+### Security boundary
 
-`math.falcon`:
+```text
+Falcon source
+     ↓
+ Lexer → Parser → Module Linker
+                    ↓
+             Type / Symbol checks
+                    ↓
+             AST Optimizer
+                    ↓
+              Bytecode Compiler
+                    ↓
+                 FCBC
+                    ↓
+             Capability-aware VM
+                    ↓
+        Explicit host capability policy
+```
+
+The VM never implicitly grants network access. A host embedding FalconCore must explicitly construct a `CapabilityPolicy`, allow the required capability, and optionally configure a usage limit before `NetworkScan` can proceed. The current network operation remains a safe host-adapter placeholder rather than arbitrary socket access.
+
+### Optimizer example
 
 ```falcon
-export fn add(a, b) {
-    return a + b
-}
+print 2 + 3 * 4
 ```
 
-`main.falcon`:
-
-```falcon
-import "math.falcon" as math
-print math::add(2, 3)
-```
-
-Then:
-
-```bash
-falconcore run main.falcon
-falconcore check main.falcon
-falconcore build main.falcon
-```
-
-The linker keeps dependency declarations namespaced (`math::add`) while the entry module remains the executable root.
+Literal arithmetic is folded before bytecode generation, reducing unnecessary runtime work. Expressions such as `10 / 0` are deliberately preserved so the VM can report its normal `DivisionByZero` error.
 
 ## Quick Start
 
@@ -59,40 +63,6 @@ cargo run -- run-fbc examples/hello.fbc
 cargo run -- check examples/hello.falcon
 cargo run -- --version
 ```
-
-## Architecture
-
-```text
-                         FalconCore v1.2
-                                │
-          ┌─────────────────────┼──────────────────────┐
-          ↓                     ↓                      ↓
-        Lexer                 Parser                   CLI
-          │                     │                      │
-          └─────────────────── AST ───────────────────┘
-                                ↓
-                       Module Resolution
-                                ↓
-                    Namespace-aware Linker
-                                ↓
-                       Symbol + Type Check
-                                ↓
-                    Capability Policy Boundary
-                                ↓
-                       Bytecode Compiler
-                                ↓
-                       FCBC Serializer
-                                ↓
-                         Stack-based VM
-                                ↓
-                    Explicit Host Integration
-```
-
-## Security Model
-
-FalconCore follows a capability-oriented model: sensitive host operations are opt-in, deny-by-default, and policy controlled. Module imports are resolved relative to the importing file, missing modules and dependency cycles are rejected, and the linker exposes dependency declarations only through their exported namespace. The runtime does not silently grant operating-system access.
-
-FCBC artifacts validate their magic header, format version, typed constant tags, opcode tags, UTF-8 strings, and trailing data before execution.
 
 ## Development
 
@@ -125,12 +95,13 @@ cargo clippy --all-targets --all-features -- -D warnings
 - [x] Cross-module linking and CLI integration
 - [x] Deterministic package-lock serialization
 - [x] Capability usage snapshots and batch authorization
+- [x] Compiler constant-folding optimizer
+- [x] Capability-aware VM dispatch foundation
 - [ ] Immutable-constant assignment enforcement
-- [ ] Capability-aware VM opcode dispatch
 - [ ] Registry-backed dependency resolution
 - [ ] Dependency graph solver and lockfile verification
 - [ ] FCBC v3
-- [ ] Optimizer / bytecode optimization passes
+- [ ] Bytecode optimization passes beyond constant folding
 - [ ] Native/AOT backend stabilization
 - [ ] Language server / editor integration
 - [ ] Standard library and package registry
