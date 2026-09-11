@@ -4,73 +4,104 @@
 
 FalconCore is an experimental, security-minded programming language and embeddable runtime built in Rust.
 
-## v0.7 — Module System Foundation
+## v0.9 — Toolchain and Bytecode Artifacts
 
-v0.7 adds the first real module/package boundary while keeping module loading explicit and filesystem-scoped.
+v0.9 turns the runtime into a small source-to-artifact toolchain while extending the module boundary from a library-only resolver into the normal `check` and `build` workflows.
 
-- `import "path/to/module"` syntax
-- Optional import aliases with `as`
-- `export` syntax for module-visible declarations
-- Relative `.falcon` module resolution
-- Recursive dependency discovery
-- Missing-module diagnostics at resolver level
-- Import-cycle detection
-- Module AST representation
-- Compiler/type-checker support for module declarations
-- Version bumped to `0.7.0`
+- `falconcore run <file>` source execution
+- `falconcore check <file>` module-aware type checking
+- `falconcore build <file>` compilation into `.fbc`
+- `falconcore run-fbc <file>` execution of a versioned FCBC artifact
+- `falconcore inspect <file>` bytecode/function inspection
+- Binary FCBC serializer/deserializer with magic header and versioning
+- Function metadata persisted in artifacts
+- Module resolution and type checking during builds
+- Clear CLI command-oriented help while retaining v0.8 legacy flags
+- Version bumped to `0.9.0`
 
-### Module example
+### Build and run
 
-```falcon
-import "lib/math" as math
-
-export secure const answer = 42
-print answer
+```bash
+cargo run -- build examples/hello.falcon
+cargo run -- inspect examples/hello.fbc
+cargo run -- run-fbc examples/hello.fbc
+cargo run -- check examples/hello.falcon
 ```
 
-The resolver treats an extensionless import such as `lib/math` as `lib/math.falcon` relative to the importing file. It canonicalizes files, tracks the dependency stack, and rejects cycles instead of silently recursing.
+The FCBC artifact stores compiler constants, instructions, and function metadata. The format starts with the `FCBC` magic header and a format version, so incompatible artifacts can be rejected instead of executed accidentally.
+
+### Module-aware workflow
+
+```text
+main.falcon
+   │
+   ├── import "lib/math"
+   │
+   ↓
+ModuleResolver
+   │
+   ├── canonical paths
+   ├── missing-module detection
+   └── cycle detection
+   │
+   ↓
+TypeChecker (all resolved modules)
+   │
+   ↓
+Compiler (entry module)
+   │
+   ↓
+FCBC artifact
+```
 
 ## Quick Start
 
 ```bash
-cargo run -- --eval 'print 2 + 3 * 4'
-cargo run -- --file examples/hello.falcon
-cargo run -- --tokens 'print 42'
-cargo run -- --ast 'print 42'
-cargo run -- --bytecode 'print 42'
-cargo run -- --check 'print 42'
+cargo run -- eval 'print 2 + 3 * 4'
+cargo run -- run examples/hello.falcon
+cargo run -- build examples/hello.falcon
+cargo run -- inspect examples/hello.fbc
+cargo run -- run-fbc examples/hello.fbc
+cargo run -- tokens 'print 42'
+cargo run -- ast 'print 42'
+cargo run -- bytecode 'print 42'
+cargo run -- check examples/hello.falcon
 cargo run -- --version
 ```
 
 ## Architecture
 
 ```text
-                  FalconCore Toolchain
-                         │
-        ┌────────────────┼─────────────────┐
-        ↓                ↓                 ↓
-      Lexer            Parser            CLI
-        │                │                 │
-        └─────────────── AST ──────────────┘
-                         ↓
-                  Module Resolver
-                         ↓
-                Type Checking / Diagnostics
-                         ↓
-                  Bytecode Compiler
-                         ↓
-             Constants + Instructions
-                         ↓
-                  Stack-based VM
-                         ↓
-                Call Frames / Locals
-                         ↓
-             Explicit Host Capabilities
+                    FalconCore Toolchain
+                           │
+          ┌────────────────┼─────────────────┐
+          ↓                ↓                 ↓
+        Lexer            Parser             CLI
+          │                │                 │
+          └─────────────── AST ──────────────┘
+                           ↓
+                    Module Resolver
+                           ↓
+                  Type Checking / Errors
+                           ↓
+                    Bytecode Compiler
+                           ↓
+                 FCBC Serializer
+                           ↓
+             .fbc Constants + Opcodes
+                           ↓
+                 FCBC Deserializer
+                           ↓
+                    Stack-based VM
+                           ↓
+              Explicit Host Capabilities
 ```
 
 ## Security Model
 
 Security-sensitive operations remain explicit capabilities. Module resolution is filesystem-scoped to the importing file's directory and rejects missing files and dependency cycles. `network.scan` remains behind an explicit runtime capability boundary and is intended to connect later to an authorized host-side API with policy enforcement.
+
+FCBC artifacts validate their magic header, format version, typed constant tags, opcode tags, UTF-8 strings, and trailing data before execution. Malformed artifacts are rejected by the decoder.
 
 ## Development
 
@@ -86,18 +117,20 @@ cargo clippy --all-targets --all-features -- -D warnings
 - [x] Bytecode compiler
 - [x] Hardened stack VM
 - [x] Function calls and call frames
-- [x] Float support
+- [x] Float / bool / null runtime values
 - [x] CI
 - [x] Developer CLI
 - [x] Bytecode disassembler
 - [x] Structured compiler diagnostics foundation
 - [x] Module/import resolver foundation
-- [ ] First-class `bool` / `null` values
-- [ ] Immutable-constant enforcement
-- [ ] Bytecode serialization and versioning
+- [x] Module-aware `check` and `build`
+- [x] FCBC bytecode serialization and versioning
+- [ ] First-class module namespaces and symbol resolution
+- [ ] Immutable-constant assignment enforcement
 - [ ] Capability registry and permission policy
 - [ ] Native/AOT backend stabilization
 - [ ] Language server / editor integration
+- [ ] Package manifest and dependency lockfile
 
 ## License
 
