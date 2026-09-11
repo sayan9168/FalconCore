@@ -1,4 +1,12 @@
-```falcon
-// FalconCore - Hello World
-print "Hello from FalconCore!"
-print "This is my own language!"
+fn add(a, b) {
+    return a + b
+}
+
+secure let result = add(20, 22)
+print result
+
+if result == 42 {
+    print "The answer is correct."
+} else {
+    print "Unexpected result."
+}

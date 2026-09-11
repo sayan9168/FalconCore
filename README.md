@@ -4,58 +4,82 @@
 
 FalconCore is an experimental, security-minded programming language and embeddable runtime built in Rust.
 
-## v0.3 — Execution Engine Jump
+## v0.4 — Developer Toolchain Jump
 
-- First-class integer, float and string values in the front-end
-- Function-call AST with positional arguments
-- Real VM call frames with isolated local variables
-- Function metadata and bytecode entry points
-- Recursive function calls with a bounded call stack
-- Arity validation and undefined-function errors
-- Mixed integer/float arithmetic
-- Floating-point comparisons
-- Safer return handling
-- Existing explicit `network.scan` capability boundary retained
+v0.4 turns FalconCore from a runtime prototype into a usable language toolchain foundation.
 
-## Example
+- Standalone CLI entry point
+- Inline execution with `--eval`
+- File execution with `--file`
+- Lexer inspection with `--tokens`
+- AST inspection with `--ast`
+- Bytecode inspection with `--bytecode`
+- Version/help commands
+- Dedicated bytecode disassembler module
+- Executable `.falcon` example
+- Removed unused native-code-generation dependencies from the default build
+- Preserved VM call frames, recursion limits, mixed numeric arithmetic, and explicit security capabilities
+
+## Quick Start
+
+```bash
+cargo run -- --eval 'print 2 + 3 * 4'
+cargo run -- --file examples/hello.falcon
+cargo run -- --tokens 'print 42'
+cargo run -- --ast 'print 42'
+cargo run -- --bytecode 'print 42'
+cargo run -- --version
+```
+
+Once installed as a binary, the same interface is available as:
+
+```bash
+falconcore --eval 'print "Hello, FalconCore"'
+falconcore --file examples/hello.falcon
+```
+
+## Language Example
 
 ```falcon
 fn add(a, b) {
     return a + b
 }
 
-secure let answer = add(10, 32)
+secure let answer = add(20, 22)
 print answer
-print 3.5 * 2.0
 
-repeat 2 {
-    print "FalconCore v0.3"
+if answer == 42 {
+    print "The answer is correct."
+} else {
+    print "Unexpected result."
 }
 ```
 
 ## Architecture
 
 ```text
-Source
-  ↓
-Lexer → Parser → AST
-               ↓
-          Bytecode Compiler
-               ↓
-      constants + opcodes + functions
-               ↓
-        Stack VM + Call Frames
-               ↓
-        explicit capabilities
+                  FalconCore Toolchain
+                         │
+        ┌────────────────┼────────────────┐
+        ↓                ↓                ↓
+      Lexer            Parser           CLI
+        │                │                │
+        └─────────────── AST ─────────────┘
+                         ↓
+                  Bytecode Compiler
+                         ↓
+             Constants + Instructions
+                         ↓
+                  Stack-based VM
+                         ↓
+                Call Frames / Locals
+                         ↓
+             Explicit Host Capabilities
 ```
 
-### Function ABI
+## Security Model
 
-Each compiled function receives its arguments from the VM stack, binds them to named local slots, and returns one value. Frames carry their own local environment and return instruction pointer. The VM enforces a maximum call depth to prevent unbounded recursion from exhausting the process stack.
-
-## Security model
-
-Security-sensitive operations remain explicit capabilities. The language runtime does not silently perform unrestricted network activity. `network.scan` currently returns a capability-boundary message and is intended to be connected later to an authorized host-side API.
+Security-sensitive operations remain explicit capabilities. The runtime does not silently perform unrestricted network activity. `network.scan` currently stops at an explicit capability boundary and is intended to be connected later to an authorized host-side API with policy enforcement.
 
 ## Development
 
@@ -63,7 +87,6 @@ Security-sensitive operations remain explicit capabilities. The language runtime
 cargo fmt --all
 cargo test
 cargo clippy --all-targets --all-features -- -D warnings
-cargo run
 ```
 
 ## Roadmap
@@ -74,14 +97,16 @@ cargo run
 - [x] Function calls and call frames
 - [x] Float support
 - [x] CI
+- [x] Developer CLI
+- [x] Bytecode disassembler
 - [ ] Structured parser diagnostics
 - [ ] First-class `bool` / `null` values
 - [ ] Immutable-constant enforcement
 - [ ] Bytecode serialization and versioning
 - [ ] Module/package system
-- [ ] Stable CLI: `falcon check`, `falcon run`, `falcon build`
 - [ ] Capability registry and permission policy
 - [ ] Native/AOT backend stabilization
+- [ ] Language server / editor integration
 
 ## License
 
