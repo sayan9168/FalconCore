@@ -1,4 +1,4 @@
-use falconcore::{bytecode::disassemble, compiler::Compiler, lexer::Lexer, parser::Parser, vm::VM, VERSION};
+use falconcore::{bytecode::disassemble, compiler::Compiler, diagnostics::{format_diagnostics, Diagnostic}, lexer::Lexer, parser::Parser, typecheck::TypeChecker, vm::VM, VERSION};
 use std::{env, fs, process};
 
 const HELP: &str = r#"FalconCore — security-minded programming language runtime
@@ -9,6 +9,8 @@ USAGE:
 OPTIONS:
   --eval <SOURCE>       Execute inline FalconCore source
   --file <PATH>         Execute a .falcon source file
+  --check <SOURCE>      Type-check inline source without executing it
+  --check-file <PATH>   Type-check a .falcon source file
   --tokens <SOURCE>     Print lexer output for inline source
   --ast <SOURCE>        Print parsed AST for inline source
   --bytecode <SOURCE>   Compile and disassemble inline source
@@ -18,6 +20,7 @@ OPTIONS:
 EXAMPLES:
   falconcore --eval 'print 2 + 3 * 4'
   falconcore --file examples/hello.falcon
+  falconcore --check 'print missing(1)'
   falconcore --bytecode 'print 42'
 "#;
 
@@ -29,7 +32,17 @@ fn parse_source(source: &str) -> (Vec<falconcore::parser::Expr>, Compiler) {
     (ast, compiler)
 }
 
+fn check_source(source: &str) -> Result<(), String> {
+    let (ast, _) = parse_source(source);
+    let mut checker = TypeChecker::new();
+    checker.check(&ast).map_err(|errors| {
+        let diagnostics: Vec<_> = errors.into_iter().map(|e| Diagnostic::error("E2001", e.message)).collect();
+        format_diagnostics(&diagnostics)
+    })
+}
+
 fn run_source(source: &str) -> Result<(), String> {
+    check_source(source)?;
     let (_, compiler) = parse_source(source);
     VM::with_functions(
         compiler.get_constants().to_vec(),
@@ -74,6 +87,10 @@ fn main() {
         value_after_flag(&args, "--ast").map(|s| { let (ast, _) = parse_source(&s); println!("{ast:#?}"); })
     } else if args.iter().any(|a| a == "--bytecode") {
         value_after_flag(&args, "--bytecode").map(|s| { let (_, c) = parse_source(&s); print!("{}", disassemble(c.get_constants(), c.get_code())); })
+    } else if args.iter().any(|a| a == "--check") {
+        value_after_flag(&args, "--check").and_then(|s| check_source(&s))
+    } else if args.iter().any(|a| a == "--check-file") {
+        value_after_flag(&args, "--check-file").and_then(|path| fs::read_to_string(&path).map_err(|e| format!("cannot read {path}: {e}"))).and_then(|s| check_source(&s))
     } else if args.iter().any(|a| a == "--eval") {
         value_after_flag(&args, "--eval").and_then(|s| run_source(&s))
     } else if args.iter().any(|a| a == "--file") {
