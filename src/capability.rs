@@ -32,7 +32,11 @@ impl CapabilityRegistry {
         self.usage.insert(capability, used + 1);
         Ok(())
     }
+    pub fn request_many<I>(&mut self, capabilities: I) -> Result<(), CapabilityError>
+    where I: IntoIterator<Item = Capability> { for capability in capabilities { self.request(capability)?; } Ok(()) }
     pub fn usage(&self, capability: &Capability) -> u64 { self.usage.get(capability).copied().unwrap_or(0) }
+    pub fn policy_allows(&self, capability: &Capability) -> bool { self.policy.allows(capability) }
+    pub fn snapshot(&self) -> BTreeMap<Capability, u64> { self.usage.clone() }
 }
 
 #[cfg(test)]
@@ -48,5 +52,12 @@ mod tests {
         assert!(r.request(Capability::NetworkScan).is_ok());
         assert!(r.request(Capability::NetworkScan).is_ok());
         assert!(matches!(r.request(Capability::NetworkScan), Err(CapabilityError::LimitExceeded(Capability::NetworkScan))));
+    }
+    #[test] fn batch_requests_are_policy_checked() {
+        let p = CapabilityPolicy::deny_all().allow(Capability::FilesystemRead);
+        let mut r = CapabilityRegistry::new(p);
+        assert!(r.request_many([Capability::FilesystemRead]).is_ok());
+        assert_eq!(r.usage(&Capability::FilesystemRead), 1);
+        assert!(!r.policy_allows(&Capability::ProcessSpawn));
     }
 }

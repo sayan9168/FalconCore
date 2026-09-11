@@ -1,6 +1,6 @@
 [package]
 name = "falconcore"
-version = "1.0.0"
+version = "1.1.0"
 edition = "2021"
 description = "FalconCore — a security-minded, embeddable programming language runtime and developer toolchain."
 license = "Apache-2.0"
