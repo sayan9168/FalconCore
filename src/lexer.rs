@@ -1,293 +1,62 @@
-// src/lexer.rs - FalconCore Lexer (Fully Enhanced)
-// Supports secure let/const, fn, if/else, repeat, print, network.scan, crypto.random, time.now, wait
+// src/lexer.rs - FalconCore Lexer
+// Supports secure bindings, functions, control flow, built-ins, and modules.
 
 use std::iter::Peekable;
 use std::str::Chars;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum TokenType {
-    // Keywords
-    SecureLet,
-    SecureConst,
-    Fn,
-    Return,
-    If,
-    ElseIf,
-    Else,
-    EndIf,
-    Repeat,
-    EndRepeat,
-    Break,
-    Continue,
-    Print,
-
-    // Built-in commands
-    NetworkScan,
-    CryptoRandom,
-    TimeNow,
-    Wait,
-
-    // Literals
-    Identifier(String),
-    String(String),
-    Number(i64),
-    Float(f64),
-
-    // Operators
-    Plus,
-    Minus,
-    Star,
-    Slash,
-    EqualEqual,
-    NotEqual,
-    Greater,
-    Less,
-    GreaterEqual,
-    LessEqual,
-    Assign,
-
-    // Punctuation
-    LParen,
-    RParen,
-    LBrace,
-    RBrace,
-    LBracket,
-    RBracket,
-    Comma,
-    Colon,
-    Semi,
-
-    // End of file
+    SecureLet, SecureConst, Fn, Return, If, ElseIf, Else, EndIf, Repeat, EndRepeat,
+    Break, Continue, Print,
+    Import, Export, As,
+    NetworkScan, CryptoRandom, TimeNow, Wait,
+    Identifier(String), String(String), Number(i64), Float(f64),
+    Plus, Minus, Star, Slash, EqualEqual, NotEqual, Greater, Less, GreaterEqual, LessEqual, Assign,
+    LParen, RParen, LBrace, RBrace, LBracket, RBracket, Comma, Colon, Semi,
     Eof,
 }
 
 #[derive(Debug, Clone)]
-pub struct Token {
-    pub kind: TokenType,
-    pub line: usize,
-    pub column: usize,
-}
+pub struct Token { pub kind: TokenType, pub line: usize, pub column: usize }
 
-pub struct Lexer<'a> {
-    chars: Peekable<Chars<'a>>,
-    line: usize,
-    column: usize,
-}
+pub struct Lexer<'a> { chars: Peekable<Chars<'a>>, line: usize, column: usize }
 
 impl<'a> Lexer<'a> {
-    pub fn new(input: &'a str) -> Self {
-        Lexer {
-            chars: input.chars().peekable(),
-            line: 1,
-            column: 1,
-        }
-    }
-
-    fn advance(&mut self) -> Option<char> {
-        self.column += 1;
-        self.chars.next()
-    }
-
-    fn peek(&mut self) -> Option<&char> {
-        self.chars.peek()
-    }
-
-    fn skip_whitespace(&mut self) {
-        while let Some(c) = self.peek() {
-            if c.is_whitespace() {
-                if *c == '\n' {
-                    self.line += 1;
-                    self.column = 1;
-                }
-                self.advance();
-            } else {
-                break;
-            }
-        }
-    }
-
+    pub fn new(input: &'a str) -> Self { Self { chars: input.chars().peekable(), line: 1, column: 1 } }
+    fn advance(&mut self) -> Option<char> { self.column += 1; self.chars.next() }
+    fn peek(&mut self) -> Option<&char> { self.chars.peek() }
+    fn skip_whitespace(&mut self) { while let Some(c)=self.peek() { if c.is_whitespace() { if *c=='\n' { self.line+=1; self.column=1; } self.advance(); } else { break; } } }
     fn read_identifier(&mut self, first: char) -> TokenType {
-        let mut ident = first.to_string();
-        while let Some(c) = self.peek() {
-            if c.is_alphanumeric() || *c == '_' {
-                ident.push(self.advance().unwrap());
-            } else {
-                break;
-            }
-        }
-
-        let lower_ident = ident.to_lowercase();
-
-        match lower_ident.as_str() {
-            "secure" => {
-                self.skip_whitespace();
-                let next_word = self.read_next_word();
-                match next_word.as_str() {
-                    "let" => TokenType::SecureLet,
-                    "const" => TokenType::SecureConst,
-                    _ => TokenType::Identifier(ident),
-                }
-            }
-            "fn" => TokenType::Fn,
-            "return" => TokenType::Return,
-            "if" => TokenType::If,
-            "elseif" => TokenType::ElseIf,
-            "else" => TokenType::Else,
-            "endif" => TokenType::EndIf,
-            "repeat" => TokenType::Repeat,
-            "endrepeat" => TokenType::EndRepeat,
-            "break" => TokenType::Break,
-            "continue" => TokenType::Continue,
-            "print" => TokenType::Print,
-            "network" => {
-                self.skip_whitespace();
-                if let Some('.') = self.peek() {
-                    self.advance();
-                    let next_word = self.read_next_word();
-                    if next_word == "scan" {
-                        return TokenType::NetworkScan;
-                    }
-                }
-                TokenType::Identifier(ident)
-            }
-            "crypto" => {
-                self.skip_whitespace();
-                if let Some('.') = self.peek() {
-                    self.advance();
-                    let next_word = self.read_next_word();
-                    if next_word == "random" {
-                        return TokenType::CryptoRandom;
-                    }
-                }
-                TokenType::Identifier(ident)
-            }
-            "time" => {
-                self.skip_whitespace();
-                if let Some('.') = self.peek() {
-                    self.advance();
-                    let next_word = self.read_next_word();
-                    if next_word == "now" {
-                        return TokenType::TimeNow;
-                    }
-                }
-                TokenType::Identifier(ident)
-            }
-            "wait" => TokenType::Wait,
-            _ => TokenType::Identifier(ident),
+        let mut ident=first.to_string();
+        while let Some(c)=self.peek() { if c.is_alphanumeric() || *c=='_' { ident.push(self.advance().unwrap()); } else { break; } }
+        match ident.to_lowercase().as_str() {
+            "secure" => { self.skip_whitespace(); match self.read_next_word().as_str() { "let"=>TokenType::SecureLet,"const"=>TokenType::SecureConst,_=>TokenType::Identifier(ident) } }
+            "fn"=>TokenType::Fn,"return"=>TokenType::Return,"if"=>TokenType::If,"elseif"=>TokenType::ElseIf,"else"=>TokenType::Else,"endif"=>TokenType::EndIf,
+            "repeat"=>TokenType::Repeat,"endrepeat"=>TokenType::EndRepeat,"break"=>TokenType::Break,"continue"=>TokenType::Continue,"print"=>TokenType::Print,
+            "import"=>TokenType::Import,"export"=>TokenType::Export,"as"=>TokenType::As,
+            "network"=>self.builtin(TokenType::NetworkScan,"scan",ident),
+            "crypto"=>self.builtin(TokenType::CryptoRandom,"random",ident),
+            "time"=>self.builtin(TokenType::TimeNow,"now",ident),
+            "wait"=>TokenType::Wait,_=>TokenType::Identifier(ident)
         }
     }
-
-    fn read_next_word(&mut self) -> String {
-        let mut word = String::new();
-        while let Some(c) = self.peek() {
-            if c.is_alphanumeric() {
-                word.push(self.advance().unwrap());
-            } else {
-                break;
-            }
-        }
-        word
-    }
-
-    fn read_string(&mut self) -> TokenType {
-        let mut s = String::new();
-        while let Some(c) = self.advance() {
-            if c == '"' {
-                break;
-            }
-            s.push(c);
-        }
-        TokenType::String(s)
-    }
-
-    fn read_number(&mut self, first: char) -> TokenType {
-        let mut num = first.to_string();
-        let mut is_float = false;
-
-        while let Some(c) = self.peek() {
-            if c.is_digit(10) {
-                num.push(self.advance().unwrap());
-            } else if *c == '.' && !is_float {
-                is_float = true;
-                num.push(self.advance().unwrap());
-            } else {
-                break;
-            }
-        }
-
-        if is_float {
-            TokenType::Float(num.parse().unwrap_or(0.0))
-        } else {
-            TokenType::Number(num.parse().unwrap_or(0))
+    fn builtin(&mut self, token: TokenType, word: &str, ident: String) -> TokenType { self.skip_whitespace(); if let Some('.')=self.peek() { self.advance(); if self.read_next_word()==word { return token; } } TokenType::Identifier(ident) }
+    fn read_next_word(&mut self)->String { let mut word=String::new(); while let Some(c)=self.peek() { if c.is_alphanumeric() { word.push(self.advance().unwrap()); } else { break; } } word }
+    fn read_string(&mut self)->TokenType { let mut s=String::new(); while let Some(c)=self.advance() { if c=='"' { break; } s.push(c); } TokenType::String(s) }
+    fn read_number(&mut self, first: char)->TokenType { let mut n=first.to_string(); let mut f=false; while let Some(c)=self.peek() { if c.is_ascii_digit(){n.push(self.advance().unwrap())} else if *c=='.'&&!f{f=true;n.push(self.advance().unwrap())} else{break} } if f {TokenType::Float(n.parse().unwrap_or(0.0))} else {TokenType::Number(n.parse().unwrap_or(0))} }
+    pub fn next_token(&mut self)->Token {
+        self.skip_whitespace(); let line=self.line; let column=self.column;
+        match self.advance() {
+            Some(c)=>{ let kind=match c {
+                '"'=>self.read_string(),'0'..='9'=>self.read_number(c),'a'..='z'|'A'..='Z'|'_'=>self.read_identifier(c),
+                '+'=>TokenType::Plus,'-'=>TokenType::Minus,'*'=>TokenType::Star,'/'=>TokenType::Slash,
+                '='=>if let Some('=')=self.peek(){self.advance();TokenType::EqualEqual}else{TokenType::Assign},
+                '!'=>if let Some('=')=self.peek(){self.advance();TokenType::NotEqual}else{TokenType::Identifier("!".into())},
+                '>'=>if let Some('=')=self.peek(){self.advance();TokenType::GreaterEqual}else{TokenType::Greater},
+                '<'=>if let Some('=')=self.peek(){self.advance();TokenType::LessEqual}else{TokenType::Less},
+                '('=>TokenType::LParen,')'=>TokenType::RParen,'{'=>TokenType::LBrace,'}'=>TokenType::RBrace,'['=>TokenType::LBracket,']'=>TokenType::RBracket,','=>TokenType::Comma,':'=>TokenType::Colon,';'=>TokenType::Semi,
+                _=>TokenType::Identifier(c.to_string()) }; Token{kind,line,column} }
+            None=>Token{kind:TokenType::Eof,line,column}
         }
     }
-
-    pub fn next_token(&mut self) -> Token {
-        self.skip_whitespace();
-
-        let line = self.line;
-        let column = self.column;
-
-        if let Some(c) = self.advance() {
-            match c {
-                '"' => Token { kind: self.read_string(), line, column },
-                '0'..='9' => Token { kind: self.read_number(c), line, column },
-                'a'..='z' | 'A'..='Z' | '_' => Token { kind: self.read_identifier(c), line, column },
-
-                '+' => Token { kind: TokenType::Plus, line, column },
-                '-' => Token { kind: TokenType::Minus, line, column },
-                '*' => Token { kind: TokenType::Star, line, column },
-                '/' => Token { kind: TokenType::Slash, line, column },
-
-                '=' => {
-                    if let Some('=') = self.peek() {
-                        self.advance();
-                        Token { kind: TokenType::EqualEqual, line, column }
-                    } else {
-                        Token { kind: TokenType::Assign, line, column }
-                    }
-                }
-
-                '!' => {
-                    if let Some('=') = self.peek() {
-                        self.advance();
-                        Token { kind: TokenType::NotEqual, line, column }
-                    } else {
-                        Token { kind: TokenType::Identifier("!".to_string()), line, column }
-                    }
-                }
-
-                '>' => {
-                    if let Some('=') = self.peek() {
-                        self.advance();
-                        Token { kind: TokenType::GreaterEqual, line, column }
-                    } else {
-                        Token { kind: TokenType::Greater, line, column }
-                    }
-                }
-
-                '<' => {
-                    if let Some('=') = self.peek() {
-                        self.advance();
-                        Token { kind: TokenType::LessEqual, line, column }
-                    } else {
-                        Token { kind: TokenType::Less, line, column }
-                    }
-                }
-
-                '(' => Token { kind: TokenType::LParen, line, column },
-                ')' => Token { kind: TokenType::RParen, line, column },
-                '{' => Token { kind: TokenType::LBrace, line, column },
-                '}' => Token { kind: TokenType::RBrace, line, column },
-                '[' => Token { kind: TokenType::LBracket, line, column },
-                ']' => Token { kind: TokenType::RBracket, line, column },
-                ',' => Token { kind: TokenType::Comma, line, column },
-                ':' => Token { kind: TokenType::Colon, line, column },
-
-                _ => Token { kind: TokenType::Identifier(c.to_string()), line, column },
-            }
-        } else {
-            Token { kind: TokenType::Eof, line, column }
-        }
-    }
-                        }
+}
