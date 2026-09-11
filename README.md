@@ -4,25 +4,26 @@
 
 FalconCore is an experimental, security-minded programming language and embeddable runtime built in Rust.
 
-## v1.3 — Compiler + Security Runtime
+## v1.4 — Production Language Core
 
-v1.3 turns the v1.2 language platform into a safer compiler/runtime pipeline. The compiler now performs deterministic AST constant folding before bytecode generation, while sensitive runtime operations cross an explicit deny-by-default capability boundary.
+v1.4 strengthens the artifact and package trust boundaries introduced in v1.3. FCBC bytecode is now structurally verified before VM execution, and package locks can be checked against manifests before dependency use.
 
 ### What's new
 
-- Deterministic AST constant folding optimizer
-- Arithmetic and comparison folding for literal values
-- Division-by-zero expressions remain unfurled so runtime error semantics are preserved
-- Optimizer integrated directly into `Compiler::compile`
-- VM capability registry integration
-- `NetworkScan` now requires an explicitly allowed `NetworkScan` capability
-- Capability usage limits are enforced by the VM
-- New runtime errors for denied and exhausted capabilities
-- Existing `VM::new` / `with_functions` constructors remain deny-by-default
-- New `VM::with_capabilities` constructor for explicit host policy injection
-- Version bumped to `1.3.0`
+- FCBC bytecode verifier module
+- VM execution gate: malformed bytecode is rejected before dispatch
+- constant-index, jump-target, repeat-target and function-entry validation
+- function call arity validation during bytecode verification
+- required `Halt` validation for executable artifacts
+- structured bytecode verification runtime error
+- manifest ↔ lockfile consistency verification
+- missing dependency detection
+- undeclared lock entry detection
+- simple version requirement matching
+- registry-source checksum requirement
+- version bumped to `1.4.0`
 
-### Security boundary
+### Security pipeline
 
 ```text
 Falcon source
@@ -35,22 +36,24 @@ Falcon source
                     ↓
               Bytecode Compiler
                     ↓
-                 FCBC
+            FCBC serialize/load
                     ↓
-             Capability-aware VM
+             Bytecode Verifier
+                    ↓
+          Capability-aware VM
                     ↓
         Explicit host capability policy
 ```
 
-The VM never implicitly grants network access. A host embedding FalconCore must explicitly construct a `CapabilityPolicy`, allow the required capability, and optionally configure a usage limit before `NetworkScan` can proceed. The current network operation remains a safe host-adapter placeholder rather than arbitrary socket access.
+The VM does not execute an externally loaded artifact until the verifier accepts its structural invariants. Sensitive operations still require explicit host capabilities; verification does not grant permissions.
 
-### Optimizer example
+### Package lock verification
 
-```falcon
-print 2 + 3 * 4
+```rust
+lock.verify_against(&manifest)?;
 ```
 
-Literal arithmetic is folded before bytecode generation, reducing unnecessary runtime work. Expressions such as `10 / 0` are deliberately preserved so the VM can report its normal `DivisionByZero` error.
+The check ensures every manifest dependency is locked exactly once, its simple requirement matches the locked version, no undeclared package is present, and registry dependencies carry a checksum.
 
 ## Quick Start
 
@@ -97,9 +100,11 @@ cargo clippy --all-targets --all-features -- -D warnings
 - [x] Capability usage snapshots and batch authorization
 - [x] Compiler constant-folding optimizer
 - [x] Capability-aware VM dispatch foundation
+- [x] FCBC bytecode structural verification
+- [x] Manifest / lock consistency verification
 - [ ] Immutable-constant assignment enforcement
 - [ ] Registry-backed dependency resolution
-- [ ] Dependency graph solver and lockfile verification
+- [ ] Full semantic version solver
 - [ ] FCBC v3
 - [ ] Bytecode optimization passes beyond constant folding
 - [ ] Native/AOT backend stabilization
