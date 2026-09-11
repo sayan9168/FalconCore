@@ -21,7 +21,7 @@ impl CapabilityPolicy {
     }
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct CapabilityRegistry { policy: CapabilityPolicy, usage: BTreeMap<Capability, u64> }
 
 impl CapabilityRegistry {
