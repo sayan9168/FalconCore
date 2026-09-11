@@ -18,9 +18,7 @@ pub struct PackageLock { pub dependencies: Vec<LockedDependency> }
 pub enum PackageError { Io(String), Invalid(String) }
 
 impl PackageManifest {
-    pub fn new(name: impl Into<String>, version: impl Into<String>, entry: impl Into<PathBuf>) -> Self {
-        Self { name: name.into(), version: version.into(), entry: entry.into(), dependencies: BTreeMap::new() }
-    }
+    pub fn new(name: impl Into<String>, version: impl Into<String>, entry: impl Into<PathBuf>) -> Self { Self { name: name.into(), version: version.into(), entry: entry.into(), dependencies: BTreeMap::new() } }
     pub fn add_dependency(&mut self, name: impl Into<String>, requirement: impl Into<String>) { self.dependencies.insert(name.into(), requirement.into()); }
     pub fn validate(&self) -> Result<(), PackageError> {
         if self.name.trim().is_empty() { return Err(PackageError::Invalid("package name is empty".into())); }
@@ -45,9 +43,32 @@ impl PackageManifest {
     }
 }
 
+impl PackageLock {
+    pub fn add(&mut self, dependency: LockedDependency) { self.dependencies.retain(|d| d.name != dependency.name); self.dependencies.push(dependency); self.dependencies.sort_by(|a,b| a.name.cmp(&b.name).then(a.version.cmp(&b.version)).then(a.source.cmp(&b.source))); }
+    pub fn validate(&self) -> Result<(), PackageError> {
+        for pair in self.dependencies.windows(2) { if pair[0].name >= pair[1].name { return Err(PackageError::Invalid("lock dependencies must be sorted and unique".into())); } }
+        if self.dependencies.iter().any(|d| d.name.trim().is_empty() || d.version.trim().is_empty() || d.source.trim().is_empty()) { return Err(PackageError::Invalid("lock dependency contains an empty field".into())); }
+        Ok(())
+    }
+    pub fn to_lock_text(&self) -> Result<String, PackageError> {
+        self.validate()?;
+        let mut out = String::from("# FalconCore package lock v1\n\n");
+        for d in &self.dependencies {
+            out.push_str("[[package]]\n");
+            out.push_str(&format!("name = \"{}\"\nversion = \"{}\"\nsource = \"{}\"\n", escape(&d.name), escape(&d.version), escape(&d.source)));
+            if let Some(c) = &d.checksum { out.push_str(&format!("checksum = \"{}\"\n", escape(c))); }
+            out.push('\n');
+        }
+        Ok(out)
+    }
+}
+
+fn escape(s: &str) -> String { s.replace('\\', "\\\\").replace('"', "\\\"") }
+
 #[cfg(test)]
 mod tests {
     use super::*;
     #[test] fn validates_manifest() { let mut m=PackageManifest::new("demo","1.0.0","main.falcon"); m.add_dependency("std","1"); assert!(m.validate().is_ok()); }
     #[test] fn parses_minimal_manifest() { let path=std::env::temp_dir().join(format!("falconcore-{}-manifest.toml",std::process::id())); fs::write(&path,"[package]\nname=\"demo\"\nversion=\"1.0.0\"\nentry=\"main.falcon\"\n[dependencies]\ncore=\"1\"\n").unwrap(); let m=PackageManifest::from_simple_toml(&path).unwrap(); fs::remove_file(path).ok(); assert_eq!(m.dependencies["core"],"1"); }
+    #[test] fn lock_is_deterministic() { let mut l=PackageLock::default(); l.add(LockedDependency{name:"z".into(),version:"1".into(),source:"registry".into(),checksum:None}); l.add(LockedDependency{name:"a".into(),version:"2".into(),source:"registry".into(),checksum:Some("abc".into())}); let text=l.to_lock_text().unwrap(); assert!(text.find("name = \"a\"").unwrap() < text.find("name = \"z\"").unwrap()); }
 }
