@@ -4,55 +4,59 @@
 
 FalconCore is an experimental, security-minded programming language and embeddable runtime built in Rust.
 
-## v0.9 — Toolchain and Bytecode Artifacts
+## v1.0 — Security Platform Foundation
 
-v0.9 turns the runtime into a small source-to-artifact toolchain while extending the module boundary from a library-only resolver into the normal `check` and `build` workflows.
+v1.0 turns FalconCore's module boundary and security model into explicit platform primitives while keeping the runtime dependency-free.
 
-- `falconcore run <file>` source execution
-- `falconcore check <file>` module-aware type checking
-- `falconcore build <file>` compilation into `.fbc`
-- `falconcore run-fbc <file>` execution of a versioned FCBC artifact
-- `falconcore inspect <file>` bytecode/function inspection
-- Binary FCBC serializer/deserializer with magic header and versioning
-- Function metadata persisted in artifacts
-- Module resolution and type checking during builds
-- Clear CLI command-oriented help while retaining v0.8 legacy flags
-- Version bumped to `0.9.0`
+### What's new
 
-### Build and run
+- First-class module symbol analysis with deterministic symbol tables
+- Explicit import/export tracking and export validation
+- Duplicate declaration detection
+- Capability policy engine with deny-by-default behavior
+- Capability registry with per-capability usage limits
+- Package manifest primitives with dependency declarations
+- Minimal dependency lock representation for reproducible package metadata
+- Version bumped to `1.0.0`
 
-```bash
-cargo run -- build examples/hello.falcon
-cargo run -- inspect examples/hello.fbc
-cargo run -- run-fbc examples/hello.fbc
-cargo run -- check examples/hello.falcon
+### Security capabilities
+
+```rust
+let policy = CapabilityPolicy::deny_all()
+    .allow(Capability::NetworkScan)
+    .limit(Capability::NetworkScan, 10);
+let mut registry = CapabilityRegistry::new(policy);
+registry.request(Capability::NetworkScan)?;
 ```
 
-The FCBC artifact stores compiler constants, instructions, and function metadata. The format starts with the `FCBC` magic header and a format version, so incompatible artifacts can be rejected instead of executed accidentally.
+The runtime does not grant operating-system access merely because a program requests a capability. A host application must explicitly construct and pass an appropriate policy/registry. `network.scan` remains a safe placeholder until a host integrates an authorized implementation.
 
-### Module-aware workflow
+### Module symbols
 
-```text
-main.falcon
-   │
-   ├── import "lib/math"
-   │
-   ↓
-ModuleResolver
-   │
-   ├── canonical paths
-   ├── missing-module detection
-   └── cycle detection
-   │
-   ↓
-TypeChecker (all resolved modules)
-   │
-   ↓
-Compiler (entry module)
-   │
-   ↓
-FCBC artifact
+A module can expose declarations with `export`:
+
+```falcon
+export secure const answer = 42
+export fn add(a, b) { return a + b }
 ```
+
+FalconCore can now analyze those declarations into a deterministic symbol table and distinguish variables, constants, and functions. Non-declarations cannot be exported, and duplicate declarations are rejected by the symbol analyzer.
+
+### Package metadata
+
+The v1.0 package layer provides a dependency-free manifest model and a deliberately small TOML reader for the package fields FalconCore needs:
+
+```toml
+[package]
+name = "demo"
+version = "1.0.0"
+entry = "src/main.falcon"
+
+[dependencies]
+core = "1"
+```
+
+This is a foundation for a future registry/lock resolver; it does not download or execute third-party packages.
 
 ## Quick Start
 
@@ -62,9 +66,6 @@ cargo run -- run examples/hello.falcon
 cargo run -- build examples/hello.falcon
 cargo run -- inspect examples/hello.fbc
 cargo run -- run-fbc examples/hello.fbc
-cargo run -- tokens 'print 42'
-cargo run -- ast 'print 42'
-cargo run -- bytecode 'print 42'
 cargo run -- check examples/hello.falcon
 cargo run -- --version
 ```
@@ -72,7 +73,7 @@ cargo run -- --version
 ## Architecture
 
 ```text
-                    FalconCore Toolchain
+                    FalconCore v1.0
                            │
           ┌────────────────┼─────────────────┐
           ↓                ↓                 ↓
@@ -80,26 +81,24 @@ cargo run -- --version
           │                │                 │
           └─────────────── AST ──────────────┘
                            ↓
-                    Module Resolver
+                  Module Resolver
                            ↓
-                  Type Checking / Errors
+              Symbol Analysis + Type Check
+                           ↓
+                  Capability Policy
                            ↓
                     Bytecode Compiler
                            ↓
                  FCBC Serializer
                            ↓
-             .fbc Constants + Opcodes
-                           ↓
-                 FCBC Deserializer
-                           ↓
                     Stack-based VM
                            ↓
-              Explicit Host Capabilities
+               Explicit Host Boundary
 ```
 
 ## Security Model
 
-Security-sensitive operations remain explicit capabilities. Module resolution is filesystem-scoped to the importing file's directory and rejects missing files and dependency cycles. `network.scan` remains behind an explicit runtime capability boundary and is intended to connect later to an authorized host-side API with policy enforcement.
+FalconCore follows a capability-oriented model: sensitive host operations are opt-in, deny-by-default, and policy controlled. The v1.0 registry supports explicit authorization and bounded use counts. Filesystem module resolution remains scoped to the importing file's directory and rejects missing files and dependency cycles.
 
 FCBC artifacts validate their magic header, format version, typed constant tags, opcode tags, UTF-8 strings, and trailing data before execution. Malformed artifacts are rejected by the decoder.
 
@@ -125,12 +124,16 @@ cargo clippy --all-targets --all-features -- -D warnings
 - [x] Module/import resolver foundation
 - [x] Module-aware `check` and `build`
 - [x] FCBC bytecode serialization and versioning
-- [ ] First-class module namespaces and symbol resolution
+- [x] Module symbol table foundation
+- [x] Export validation
+- [x] Capability registry / policy foundation
+- [x] Package manifest / lock primitives
+- [ ] Qualified module namespaces in the language grammar
 - [ ] Immutable-constant assignment enforcement
-- [ ] Capability registry and permission policy
+- [ ] Capability-aware VM opcode dispatch
+- [ ] Registry-backed dependency resolution
 - [ ] Native/AOT backend stabilization
 - [ ] Language server / editor integration
-- [ ] Package manifest and dependency lockfile
 
 ## License
 
